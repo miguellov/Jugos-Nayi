@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>🥤 JUGOS NAYI</title>
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('jugos-nayi-ui')
+          if (!raw) return
+          var data = JSON.parse(raw)
+          var st = data.state != null ? data.state : data
+          if (st.darkMode) document.documentElement.classList.add('dark')
+          var fs = st.fontScale
+          if (fs === 's') document.documentElement.style.fontSize = '15px'
+          else if (fs === 'l') document.documentElement.style.fontSize = '18px'
+          else document.documentElement.style.fontSize = '16px'
+        } catch (e) {}
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
