@@ -1,7 +1,12 @@
 import { useStore } from '../store/useStore'
 
+const inputCell =
+  'box-border min-h-[40px] w-full min-w-[2.75rem] rounded-lg border border-white/60 bg-white/80 px-2 py-2 text-center text-sm tabular-nums text-gray-900 shadow-sm backdrop-blur-sm ' +
+  'focus:border-[#1D9E75] focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/35 ' +
+  'dark:border-white/15 dark:bg-gray-900/60 dark:text-gray-100 dark:focus:border-[#1D9E75] dark:focus:ring-[#1D9E75]/30'
+
 export default function PlanDiario() {
-  const { plan, updatePlan, PG, PP } = useStore()
+  const { plan, updatePlan, iniciarSemana, PG, PP } = useStore()
   const tots = plan.reduce(
     (a, r) => ({
       pg: a.pg + r.pg,
@@ -12,6 +17,28 @@ export default function PlanDiario() {
     }),
     { pg: 0, pp: 0, vg: 0, vp: 0, ing: 0 }
   )
+
+  if (plan.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="juice-card flex flex-col items-center gap-3 p-6 text-center">
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            No hay filas de plan para esta semana en la base de datos.
+          </p>
+          <button
+            type="button"
+            onClick={() => void iniciarSemana()}
+            className="rounded-xl bg-gradient-to-r from-teal-600 via-brand to-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:brightness-105 active:scale-[0.99] dark:from-teal-700 dark:via-brand dark:to-emerald-700"
+          >
+            Iniciar semana
+          </button>
+          <p className="text-xs text-gray-500 dark:text-gray-500">
+            Crea Lunes a Sábado con Plan G 40, Plan P 25, ventas 0.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -28,7 +55,7 @@ export default function PlanDiario() {
 
       <div className="juice-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full min-w-[520px] text-xs">
             <thead className="border-b border-white/50 bg-gradient-to-r from-emerald-50/70 to-amber-50/40 backdrop-blur-sm dark:border-white/10 dark:from-emerald-950/50 dark:to-amber-950/35">
               <tr>
                 {['Día', 'Plan G', 'Plan P', 'Vend G', 'Vend P', 'Ingreso', 'Estado'].map((h) => (
@@ -40,43 +67,69 @@ export default function PlanDiario() {
             </thead>
             <tbody>
               {plan.map((r) => {
-                const ing = r.vg * PG + r.vp * PP
-                const diff = r.pg + r.pp - (r.vg + r.vp)
-                const badge =
-                  diff === 0 && r.pg + r.pp > 0 ? (
-                    <span className="rounded-full bg-brand-soft px-2 py-0.5 text-brand-dark dark:bg-brand/30 dark:text-brand-soft">
+                const pg = Number(r.pg) || 0
+                const pp = Number(r.pp) || 0
+                const vg = Number(r.vg) || 0
+                const vp = Number(r.vp) || 0
+                const ing = vg * PG + vp * PP
+                const planTotal = pg + pp
+                const vendTotal = vg + vp
+                const diff = planTotal - vendTotal
+
+                let badge
+                if (planTotal === 0 && vendTotal === 0) {
+                  badge = (
+                    <span className="inline-flex min-h-[28px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-gray-500 dark:bg-white/10 dark:text-gray-400">
+                      —
+                    </span>
+                  )
+                } else if (diff === 0 && planTotal > 0) {
+                  badge = (
+                    <span className="inline-flex min-h-[28px] items-center rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-800 dark:bg-emerald-900/45 dark:text-emerald-200">
                       ✓
                     </span>
-                  ) : diff > 0 ? (
-                    <span className="rounded-full bg-surface-muted px-2 py-0.5 text-gray-600 dark:bg-white/10 dark:text-gray-300">
-                      -{diff}
+                  )
+                } else if (diff > 0) {
+                  badge = (
+                    <span className="inline-flex min-h-[28px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-white/10 dark:text-gray-300">
+                      −{diff}
                     </span>
-                  ) : (
-                    <span className="rounded-full bg-red-50 px-2 py-0.5 text-red-600 dark:bg-red-950/50 dark:text-red-400">
+                  )
+                } else {
+                  badge = (
+                    <span className="inline-flex min-h-[28px] items-center rounded-full bg-red-50 px-2 py-0.5 text-red-600 dark:bg-red-950/55 dark:text-red-400">
                       +{Math.abs(diff)}
                     </span>
                   )
+                }
+
                 return (
                   <tr key={r.id ?? r.dia} className="border-b border-surface-muted last:border-0 dark:border-white/10">
-                    <td className="px-2 py-2 font-medium text-gray-700 dark:text-gray-200">{r.dia}</td>
+                    <td className="px-2 py-2 align-middle font-medium text-gray-700 dark:text-gray-200">{r.dia}</td>
                     {[
-                      ['pg', r.pg],
-                      ['pp', r.pp],
-                      ['vg', r.vg],
-                      ['vp', r.vp],
+                      ['pg', pg],
+                      ['pp', pp],
+                      ['vg', vg],
+                      ['vp', vp],
                     ].map(([f, v]) => (
-                      <td key={f} className="px-1 py-1">
+                      <td key={f} className="px-1 py-1.5 align-middle">
                         <input
                           type="number"
-                          min="0"
+                          inputMode="numeric"
+                          min={0}
+                          step={1}
                           value={v}
                           onChange={(e) => updatePlan(r.id, f, e.target.value)}
-                          className="w-12 rounded border border-white/60 bg-white/70 px-1 py-1 text-center text-xs text-gray-900 backdrop-blur-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/25 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100"
+                          disabled={r.id == null}
+                          className={inputCell + (r.id == null ? ' opacity-50' : '')}
+                          aria-label={`${r.dia} ${f}`}
                         />
                       </td>
                     ))}
-                    <td className="px-2 py-2 font-medium text-brand dark:text-brand-soft">${ing.toLocaleString()}</td>
-                    <td className="px-2 py-2">{badge}</td>
+                    <td className="px-2 py-2 align-middle font-medium text-brand dark:text-brand-soft">
+                      ${ing.toLocaleString()}
+                    </td>
+                    <td className="px-2 py-2 align-middle">{badge}</td>
                   </tr>
                 )
               })}

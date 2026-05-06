@@ -182,23 +182,33 @@ export const useStore = create((set, get) => ({
   async cargarPlan() {
     if (!supabase) return
     const semana = currentWeekKey()
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('plan_diario')
       .select('*')
       .eq('semana', semana)
       .order('id', { ascending: true })
     if (error) return console.error('cargarPlan', error)
+    set({ plan: (data || []).map(normalizePlanRow) })
+  },
 
-    if (!data || data.length === 0) {
-      const seed = DIAS.map((dia) => ({ dia, pg: 40, pp: 25, vg: 0, vp: 0, semana }))
-      const created = await supabase.from('plan_diario').insert(seed).select('*').order('id', { ascending: true })
-      if (created.error) return console.error('cargarPlan insert', created.error)
-      data = created.data || []
+  async iniciarSemana() {
+    if (!supabase) {
+      console.error('iniciarSemana', new Error('Supabase no configurado'))
+      return
     }
+    const semana = currentWeekKey()
+    const seed = DIAS.map((dia) => ({ dia, pg: 40, pp: 25, vg: 0, vp: 0, semana }))
+    const { data, error } = await supabase
+      .from('plan_diario')
+      .insert(seed)
+      .select('*')
+      .order('id', { ascending: true })
+    if (error) return console.error('iniciarSemana', error)
     set({ plan: (data || []).map(normalizePlanRow) })
   },
 
   async updatePlan(id, field, val) {
+    if (id == null) return
     const nextVal = Number(val) || 0
     set((s) => ({ plan: s.plan.map((r) => (r.id === id ? { ...r, [field]: nextVal } : r)) }))
     if (!supabase) return
