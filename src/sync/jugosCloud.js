@@ -54,18 +54,21 @@ function mergeServerState(raw) {
 }
 
 async function ensureSession() {
-  if (!supabase) return null
+  if (!supabase) {
+    return { session: null, authError: null }
+  }
+
   const {
-    data: { session },
+    data: { session: existing },
   } = await supabase.auth.getSession()
-  if (session?.user) return session
+  if (existing?.user) return { session: existing, authError: null }
 
   const { data, error } = await supabase.auth.signInAnonymously()
   if (error) {
     console.error('[Supabase] signInAnonymously', error)
-    return null
+    return { session: null, authError: error.message || 'Error de autenticación' }
   }
-  return data.session
+  return { session: data.session, authError: null }
 }
 
 async function saveCloudState(partialSnapshot) {
@@ -106,13 +109,14 @@ export async function initJugosCloud() {
     return { ok: true, mode: 'local' }
   }
 
-  const session = await ensureSession()
+  const { session, authError } = await ensureSession()
   if (!session?.user) {
+    const hint =
+      ' Supabase → Authentication → Providers → Anonymous (activado). En Vercel: VITE_SUPABASE_* y Redeploy.'
     return {
       ok: false,
       mode: 'cloud',
-      error:
-        'No se pudo conectar con Supabase. En el panel: Authentication → Providers → activa Anonymous.',
+      error: (authError || 'No se pudo iniciar sesión anónima.') + hint,
     }
   }
 
