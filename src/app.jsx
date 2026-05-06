@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect } from 'react'
+import { useState, useLayoutEffect, useEffect } from 'react'
 import { ShoppingBag, Calendar, ShoppingCart, TrendingUp, Moon, Sun, Type } from 'lucide-react'
 import JuiceBackdrop from './components/JuiceBackdrop'
 import PuntoDeVenta from './components/PuntoDeVenta'
@@ -6,6 +6,7 @@ import PlanDiario from './components/PlanDiario'
 import Compras from './components/Compra'
 import Ganancias from './components/Ganancia'
 import { useUiPreferences } from './store/useUiPreferences'
+import { initJugosCloud } from './sync/jugosCloud'
 
 const tabs = [
   { id: 'venta', label: 'Venta', Icon: ShoppingBag },
@@ -19,6 +20,7 @@ const FONT_LABEL = { s: 'pequeño', m: 'mediano', l: 'grande' }
 
 export default function App() {
   const [tab, setTab] = useState('venta')
+  const [syncMsg, setSyncMsg] = useState(null)
   const darkMode = useUiPreferences((s) => s.darkMode)
   const fontScale = useUiPreferences((s) => s.fontScale)
   const toggleDarkMode = useUiPreferences((s) => s.toggleDarkMode)
@@ -29,6 +31,17 @@ export default function App() {
     root.classList.toggle('dark', darkMode)
     root.style.fontSize = FONT_PX[fontScale] ?? FONT_PX.m
   }, [darkMode, fontScale])
+
+  useEffect(() => {
+    let cancelled = false
+    initJugosCloud().then((r) => {
+      if (cancelled) return
+      if (!r.ok && r.error) setSyncMsg(r.error)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="relative min-h-screen overflow-x-hidden">
@@ -75,6 +88,15 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        {syncMsg && (
+          <div
+            className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs font-medium text-amber-950 dark:border-amber-800/50 dark:bg-amber-950/50 dark:text-amber-100"
+            role="alert"
+          >
+            {syncMsg} Los cambios no se guardan en la nube hasta que funcione la conexión.
+          </div>
+        )}
 
         <main className="mx-auto w-full max-w-lg flex-1 px-4 py-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))]">
           {tab === 'venta' && <PuntoDeVenta />}
