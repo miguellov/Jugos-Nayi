@@ -103,21 +103,22 @@ registerLifecycleFlush()
 
 /**
  * Carga la nube, hidrata Zustand y escucha cambios para guardar (debounce).
- * Si falla auth o la tabla, los datos siguen en localStorage (persist del store).
+ * El guardado persistente es la tabla jugos_state en Supabase.
  */
 export async function initJugosCloud() {
-  if (typeof useStore.persist?.rehydrate === 'function') {
-    await useStore.persist.rehydrate()
-  }
-
   if (!isSupabaseConfigured()) {
     return { ok: true, mode: 'local' }
   }
 
-  const { session } = await ensureSession()
+  const { session, authError } = await ensureSession()
   if (!session?.user) {
-    console.warn('[Jugos] Sin sesión Supabase: usando solo guardado en este dispositivo (localStorage).')
-    return { ok: true, mode: 'local' }
+    const hint =
+      ' Activa Anonymous en Supabase (Authentication → Providers) y revisa VITE_SUPABASE_* en Vercel + Redeploy.'
+    return {
+      ok: false,
+      mode: 'cloud',
+      error: (authError || 'No hay sesión con Supabase.') + hint,
+    }
   }
 
   const { data, error } = await supabase
@@ -128,7 +129,11 @@ export async function initJugosCloud() {
 
   if (error) {
     console.error('[Supabase] load', error)
-    return { ok: true, mode: 'local' }
+    return {
+      ok: false,
+      mode: 'cloud',
+      error: `${error.message} Revisa la tabla jugos_state y el SQL de migración.`,
+    }
   }
 
   const rawState =

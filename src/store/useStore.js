@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import {
   DEFAULT_COMPRAS,
   DEFAULT_PG,
@@ -15,7 +14,7 @@ function restaurarStockPorVenta(sabores, venta) {
   )
 }
 
-const storeSlice = (set) => ({
+export const useStore = create((set) => ({
   sabores: DEFAULT_SABORES,
   agregarSabor: () =>
     set((s) => ({
@@ -98,19 +97,4 @@ const storeSlice = (set) => ({
 
   PG: DEFAULT_PG,
   PP: DEFAULT_PP,
-})
-
-export const useStore = create(
-  persist(storeSlice, {
-    name: 'jugos-nayi-data',
-    partialize: (s) => ({
-      sabores: s.sabores,
-      ventas: s.ventas,
-      plan: s.plan,
-      compras: s.compras,
-      PG: s.PG,
-      PP: s.PP,
-    }),
-    skipHydration: true,
-  })
-)
+}))
