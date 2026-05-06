@@ -6,7 +6,7 @@ import PlanDiario from './components/PlanDiario'
 import Compras from './components/Compra'
 import Ganancias from './components/Ganancia'
 import { useUiPreferences } from './store/useUiPreferences'
-import { initJugosCloud } from './sync/jugosCloud'
+import { useStore } from './store/useStore'
 
 const tabs = [
   { id: 'venta', label: 'Venta', Icon: ShoppingBag },
@@ -22,6 +22,9 @@ export default function App() {
   const [tab, setTab] = useState('venta')
   const [bootstrapped, setBootstrapped] = useState(false)
   const [syncMsg, setSyncMsg] = useState(null)
+  const cargarVentas = useStore((s) => s.cargarVentas)
+  const cargarPlan = useStore((s) => s.cargarPlan)
+  const cargarCompras = useStore((s) => s.cargarCompras)
   const darkMode = useUiPreferences((s) => s.darkMode)
   const fontScale = useUiPreferences((s) => s.fontScale)
   const toggleDarkMode = useUiPreferences((s) => s.toggleDarkMode)
@@ -35,23 +38,22 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-    initJugosCloud()
-      .then((r) => {
+    Promise.all([cargarVentas(), cargarPlan(), cargarCompras()])
+      .then(() => {
         if (cancelled) return
-        if (!r.ok && r.error) setSyncMsg(r.error)
         setBootstrapped(true)
       })
       .catch((e) => {
         console.error(e)
         if (!cancelled) {
-          setSyncMsg(String(e?.message ?? e))
+          setSyncMsg('No se pudo cargar datos desde Supabase.')
           setBootstrapped(true)
         }
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [cargarVentas, cargarPlan, cargarCompras])
 
   if (!bootstrapped) {
     return (
@@ -113,10 +115,7 @@ export default function App() {
             className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs font-medium text-amber-950 dark:border-amber-800/50 dark:bg-amber-950/50 dark:text-amber-100"
             role="alert"
           >
-            {syncMsg}{' '}
-            <span className="opacity-90">
-              Sin Supabase los datos no se guardan al recargar.
-            </span>
+            {syncMsg}
           </div>
         )}
 

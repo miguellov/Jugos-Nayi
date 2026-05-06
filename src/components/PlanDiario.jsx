@@ -39,7 +39,7 @@ export default function PlanDiario() {
               </tr>
             </thead>
             <tbody>
-              {plan.map((r, i) => {
+              {plan.map((r) => {
                 const ing = r.vg * PG + r.vp * PP
                 const diff = r.pg + r.pp - (r.vg + r.vp)
                 const badge =
@@ -57,7 +57,7 @@ export default function PlanDiario() {
                     </span>
                   )
                 return (
-                  <tr key={r.dia} className="border-b border-surface-muted last:border-0 dark:border-white/10">
+                  <tr key={r.id ?? r.dia} className="border-b border-surface-muted last:border-0 dark:border-white/10">
                     <td className="px-2 py-2 font-medium text-gray-700 dark:text-gray-200">{r.dia}</td>
                     {[
                       ['pg', r.pg],
@@ -70,7 +70,7 @@ export default function PlanDiario() {
                           type="number"
                           min="0"
                           value={v}
-                          onChange={(e) => updatePlan(i, f, e.target.value)}
+                          onChange={(e) => updatePlan(r.id, f, e.target.value)}
                           className="w-12 rounded border border-white/60 bg-white/70 px-1 py-1 text-center text-xs text-gray-900 backdrop-blur-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/25 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100"
                         />
                       </td>

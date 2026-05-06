@@ -25,14 +25,14 @@ export default function Compras() {
           <span className="col-span-3 text-center">Precio</span>
           <span className="col-span-2 text-center">Total</span>
         </div>
-        {compras.map((c, i) => (
+        {compras.map((c) => (
           <div
-            key={i}
+            key={c.id}
             className="grid grid-cols-12 items-center gap-2 border-b border-surface-muted px-3 py-2 last:border-0 dark:border-white/10"
           >
             <input
               value={c.nombre}
-              onChange={(e) => updateCompra(i, 'nombre', e.target.value)}
+              onChange={(e) => updateCompra(c.id, 'nombre', e.target.value)}
               placeholder="Nombre"
               className="col-span-5 rounded border border-white/60 bg-white/70 px-2 py-1 text-xs text-gray-900 backdrop-blur-sm placeholder:text-gray-400 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/20 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100 dark:placeholder:text-gray-500"
             />
@@ -40,14 +40,14 @@ export default function Compras() {
               type="number"
               min="0"
               value={c.cantidad}
-              onChange={(e) => updateCompra(i, 'cantidad', e.target.value)}
+              onChange={(e) => updateCompra(c.id, 'cantidad', e.target.value)}
               className="col-span-2 rounded border border-white/60 bg-white/70 px-1 py-1 text-center text-xs text-gray-900 backdrop-blur-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/20 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100"
             />
             <input
               type="number"
               min="0"
               value={c.precio}
-              onChange={(e) => updateCompra(i, 'precio', e.target.value)}
+              onChange={(e) => updateCompra(c.id, 'precio', e.target.value)}
               className="col-span-3 rounded border border-white/60 bg-white/70 px-1 py-1 text-center text-xs text-gray-900 backdrop-blur-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/20 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100"
             />
             <div className="col-span-2 flex items-center justify-between">
@@ -55,7 +55,7 @@ export default function Compras() {
                 ${((c.cantidad || 0) * (c.precio || 0)).toLocaleString()}
               </span>
               <button
-                onClick={() => eliminarCompra(i)}
+                onClick={() => eliminarCompra(c.id)}
                 className="text-gray-300 hover:text-red-400 dark:text-gray-600 dark:hover:text-red-400"
               >
                 <Trash2 size={12} />

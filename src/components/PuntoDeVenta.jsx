@@ -209,9 +209,9 @@ export default function PuntoDeVenta() {
           {ventas.length === 0 ? (
             <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">Sin ventas aún</p>
           ) : (
-            ventas.map((v, i) => (
+            ventas.map((v) => (
               <div
-                key={i}
+                key={v.id}
                 className="flex items-center justify-between border-b border-surface-muted px-4 py-3 last:border-0 dark:border-white/10"
               >
                 <div className="flex items-center gap-3">
@@ -232,7 +232,7 @@ export default function PuntoDeVenta() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => eliminarVenta(i)}
+                    onClick={() => eliminarVenta(v.id)}
                     className="text-gray-300 hover:text-red-400 dark:text-gray-600 dark:hover:text-red-400"
                   >
                     <Trash2 size={14} />
