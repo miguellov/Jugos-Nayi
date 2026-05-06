@@ -296,6 +296,7 @@ function defaultConfig() {
     pin_activo: false,
     meta_diaria: 65,
     foto_perfil: '',
+    nota_del_dia: '',
     updated_at: null,
   }
 }
@@ -320,6 +321,7 @@ function normalizeConfigRow(row) {
       row.meta_diaria != null && Number(row.meta_diaria) > 0 ? Math.round(Number(row.meta_diaria)) : 65,
     foto_perfil:
       row.foto_perfil != null && String(row.foto_perfil).trim() !== '' ? String(row.foto_perfil).trim() : '',
+    nota_del_dia: row.nota_del_dia != null ? String(row.nota_del_dia) : '',
     updated_at: row.updated_at ?? null,
   }
 }
@@ -332,6 +334,7 @@ function permisosBase() {
     ganancias: false,
     mayoristas: false,
     config: false,
+    meta: false,
   }
 }
 
@@ -345,6 +348,7 @@ function normalizePermisos(permisos, rol = 'empleado') {
       ganancias: true,
       mayoristas: true,
       config: true,
+      meta: true,
     }
   }
   return {
@@ -354,6 +358,7 @@ function normalizePermisos(permisos, rol = 'empleado') {
     ganancias: Boolean(p.ganancias),
     mayoristas: Boolean(p.mayoristas),
     config: Boolean(p.config),
+    meta: Boolean(p.meta),
   }
 }
 
@@ -517,10 +522,22 @@ export const useStore = create((set, get) => ({
   },
 
   tienePermiso(seccion) {
+    try {
+      const { usuarioActivo } = get()
+      if (!usuarioActivo) return false
+      if (usuarioActivo.rol === 'admin') return true
+      return usuarioActivo.permisos?.[seccion] === true
+    } catch {
+      return false
+    }
+  },
+
+  tabsVisibles() {
     const { usuarioActivo } = get()
-    if (!usuarioActivo) return false
-    if (usuarioActivo.rol === 'admin') return true
-    return Boolean(usuarioActivo.permisos?.[seccion])
+    if (!usuarioActivo) return []
+    if (usuarioActivo.rol === 'admin') return 'all'
+    const p = usuarioActivo.permisos || {}
+    return Object.keys(p).filter((k) => p[k] === true)
   },
 
   async validarPinAdmin(pin) {
@@ -689,6 +706,7 @@ export const useStore = create((set, get) => ({
     pin,
     pin_activo,
     meta_diaria,
+    nota_del_dia,
   }) {
     const pg = Number(precio_grande) || DEFAULT_PG
     const pp = Number(precio_pequeno) || DEFAULT_PP
@@ -701,6 +719,7 @@ export const useStore = create((set, get) => ({
       meta_diaria != null && String(meta_diaria).trim() !== ''
         ? Math.max(1, Math.round(Number(meta_diaria)) || 65)
         : 65
+    const nota = String(nota_del_dia ?? '').slice(0, 180)
     const updated_at = new Date().toISOString()
     const cfg = get().config
 
@@ -718,6 +737,7 @@ export const useStore = create((set, get) => ({
           pin_activo: pinOn,
           meta_diaria: meta,
           foto_perfil: cfg.foto_perfil ?? '',
+          nota_del_dia: nota,
           updated_at,
         },
         PG: pg,
@@ -736,6 +756,7 @@ export const useStore = create((set, get) => ({
       pin_activo: pinOn,
       meta_diaria: meta,
       foto_perfil: cfg.foto_perfil ? cfg.foto_perfil : null,
+      nota_del_dia: nota,
       updated_at,
     }
 

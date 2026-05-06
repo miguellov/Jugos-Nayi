@@ -40,19 +40,38 @@ export default function PuntoDeVenta() {
     totalJugosHoy,
     metaDiaria,
     calcularPuntoEquilibrio,
+    usuarioActivo,
   } = useStore()
+  const esAdmin = usuarioActivo?.rol === 'admin'
+  const permisos = usuarioActivo?.permisos || {}
+  const soloVentas =
+    !esAdmin &&
+    !permisos.plan &&
+    !permisos.compras &&
+    !permisos.ganancias &&
+    !permisos.mayoristas &&
+    !permisos.config &&
+    !permisos.ajustes
+  const notaDelDia = String(config?.nota_del_dia || '').trim()
 
   const [sabor, setSabor] = useState(null)
   const [tam, setTam] = useState(null)
   const [qty, setQty] = useState(1)
   const [notas, setNotas] = useState('')
   const [toast, setToast] = useState('')
+  const [ahora, setAhora] = useState(() => new Date())
+  const [animRegistrar, setAnimRegistrar] = useState(false)
   const [fechaLista, setFechaLista] = useState(() => formatDateLocal(new Date()))
   const [ventasOtroDia, setVentasOtroDia] = useState(null)
   const [modalLimpiar, setModalLimpiar] = useState(false)
 
   const hoyStr = formatDateLocal(new Date())
   const esHoyLista = fechaLista === hoyStr
+
+  useEffect(() => {
+    const id = setInterval(() => setAhora(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -162,6 +181,26 @@ export default function PuntoDeVenta() {
 
   return (
     <div className="space-y-4">
+      {soloVentas ? (
+        <div className="juice-card border-[#1D9E75]/20 p-4 dark:border-brand/25">
+          <p className="text-base font-bold text-gray-900 dark:text-white">
+            Hola, {usuarioActivo?.nombre || 'equipo'} 👋
+          </p>
+          <p className="mt-1 text-sm font-medium text-[#1D9E75] dark:text-brand-soft">
+            {ahora.toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {ahora.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </p>
+        </div>
+      ) : null}
+
+      {soloVentas && notaDelDia ? (
+        <div className="rounded-xl border border-[#1D9E75]/25 bg-emerald-50/80 px-4 py-3 text-sm font-medium text-emerald-900 dark:border-brand/30 dark:bg-emerald-950/35 dark:text-emerald-100">
+          📌 Nota de hoy: {notaDelDia}
+        </div>
+      ) : null}
+
       <div
         className={`juice-card border-[#1D9E75]/25 p-4 dark:border-brand/30 ${
           metaLograda
@@ -214,16 +253,22 @@ export default function PuntoDeVenta() {
         )}
       </div>
 
-      <GestionSabores />
+      {esAdmin ? <GestionSabores /> : null}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid grid-cols-2 gap-3 ${soloVentas ? 'gap-4' : ''}`}>
         <div className="juice-kpi">
-          <p className="mb-1 text-xs font-medium text-gray-700 dark:text-gray-400">Ventas hoy</p>
-          <p className="text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100">{vendidos}</p>
+          <p className={`mb-1 text-gray-700 dark:text-gray-300 ${soloVentas ? 'text-sm font-semibold' : 'text-xs font-medium'}`}>
+            Jugos vendidos
+          </p>
+          <p className={`tabular-nums text-gray-900 dark:text-gray-100 ${soloVentas ? 'text-4xl font-extrabold' : 'text-2xl font-bold'}`}>
+            {vendidos}
+          </p>
         </div>
         <div className="juice-kpi">
-          <p className="mb-1 text-xs font-medium text-gray-700 dark:text-gray-400">Total cobrado hoy</p>
-          <p className="text-2xl font-bold tabular-nums text-brand dark:text-brand-soft">
+          <p className={`mb-1 text-gray-700 dark:text-gray-300 ${soloVentas ? 'text-sm font-semibold' : 'text-xs font-medium'}`}>
+            Total cobrado
+          </p>
+          <p className={`tabular-nums text-brand dark:text-brand-soft ${soloVentas ? 'text-3xl font-extrabold' : 'text-2xl font-bold'}`}>
             {formatConMoneda(config, totalDia)}
           </p>
         </div>
@@ -270,7 +315,7 @@ export default function PuntoDeVenta() {
 
             return (
               <div key={s.id} className="relative">
-                {!agotado ? (
+                {esAdmin && !agotado ? (
                   <button
                     type="button"
                     onClick={(e) => togglePausaSabor(e, s.nombre)}
@@ -422,15 +467,21 @@ export default function PuntoDeVenta() {
 
       <button
         type="button"
-        onClick={registrar}
+        onClick={() => {
+          setAnimRegistrar(true)
+          setTimeout(() => setAnimRegistrar(false), 180)
+          registrar()
+        }}
         disabled={!puedeVender}
-        className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-teal-600 via-brand to-emerald-600 py-5 text-center text-lg font-semibold text-white
+        className={`flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-teal-600 via-brand to-emerald-600 text-center font-semibold text-white transition-transform
+          ${soloVentas ? 'py-[18px] text-lg' : 'py-5 text-lg'}
+          ${animRegistrar ? 'scale-95' : 'scale-100'}
           shadow-[inset_0_2px_0_rgba(255,255,255,0.28),0_10px_28px_-6px_rgba(13,148,136,0.55)]
           hover:from-teal-700 hover:via-brand-dark hover:to-emerald-700 hover:shadow-[inset_0_2px_0_rgba(255,255,255,0.22),0_12px_32px_-6px_rgba(13,148,136,0.6)]
           active:scale-[0.99] active:brightness-95
-          disabled:cursor-not-allowed disabled:bg-gradient-to-r disabled:from-stone-300 disabled:via-stone-300 disabled:to-stone-300 disabled:text-gray-500 disabled:shadow-none disabled:active:scale-100 dark:disabled:from-gray-700 dark:disabled:via-gray-700 dark:disabled:to-gray-700 dark:disabled:text-gray-400"
+          disabled:cursor-not-allowed disabled:bg-gradient-to-r disabled:from-stone-300 disabled:via-stone-300 disabled:to-stone-300 disabled:text-gray-500 disabled:shadow-none disabled:active:scale-100 dark:disabled:from-gray-700 dark:disabled:via-gray-700 dark:disabled:to-gray-700 dark:disabled:text-gray-400`}
       >
-        <Check size={24} strokeWidth={2.5} className="shrink-0" aria-hidden />
+        <Check size={soloVentas ? 26 : 24} strokeWidth={2.5} className="shrink-0" aria-hidden />
         <span>Registrar venta</span>
       </button>
 
@@ -438,7 +489,7 @@ export default function PuntoDeVenta() {
         <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0 flex-1">
             <p className="mb-1 text-xs font-bold uppercase tracking-wide text-gray-700 dark:text-gray-400">
-              Historial de ventas
+              {soloVentas ? 'Mis ventas de hoy' : 'Historial de ventas'}
             </p>
             <label className="sr-only" htmlFor="fecha-ventas">
               Fecha
@@ -452,7 +503,7 @@ export default function PuntoDeVenta() {
               className="w-full max-w-[11.5rem] rounded-xl border border-white/60 bg-white/90 px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-white/15 dark:bg-zinc-900/70 dark:text-gray-100"
             />
           </div>
-          {esHoyLista && (
+          {esHoyLista && esAdmin && (
             <button
               type="button"
               onClick={() => setModalLimpiar(true)}
@@ -466,12 +517,22 @@ export default function PuntoDeVenta() {
           {!esHoyLista && ventasOtroDia === null ? (
             <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">Cargando…</p>
           ) : listaVentas.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">Sin ventas este día</p>
+            soloVentas && esHoyLista ? (
+              <div className="py-8 text-center">
+                <p className="text-4xl">🥤</p>
+                <p className="mt-2 text-base font-semibold text-gray-800 dark:text-gray-100">¡Listo para vender!</p>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Selecciona un sabor para comenzar</p>
+              </div>
+            ) : (
+              <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">Sin ventas este día</p>
+            )
           ) : (
             listaVentas.map((v) => (
               <div
                 key={v.id}
-                className="flex items-center justify-between border-b border-surface-muted px-4 py-3 last:border-0 dark:border-white/10"
+                className={`flex items-center justify-between border-b border-surface-muted px-4 last:border-0 dark:border-white/10 ${
+                  soloVentas ? 'py-4' : 'py-3'
+                }`}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <span className="text-xl shrink-0">{v.emoji}</span>
@@ -483,7 +544,7 @@ export default function PuntoDeVenta() {
                     {v.notas ? (
                       <p className="truncate text-xs text-gray-500 dark:text-gray-400">{v.notas}</p>
                     ) : null}
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                    <p className={`dark:text-gray-400 ${soloVentas ? 'text-sm font-semibold text-gray-600' : 'text-xs text-gray-400'}`}>
                       {v.tam === 'grande' ? 'Grande' : 'Pequeño'} · {v.hora}
                     </p>
                   </div>

@@ -8,7 +8,7 @@ import Ganancias from './components/Ganancia'
 import Configuracion from './components/Configuracion'
 import Mayoristas from './components/Mayoristas'
 import Login from './components/Login'
-import SolicitudPin from './components/SolicitudPin'
+// Permisos ahora ocultan secciones completas (sin modal de PIN).
 import { useUiPreferences } from './store/useUiPreferences'
 import { useStore, formatConMoneda } from './store/useStore'
 import { useMayoristasActivo, getMayoristasActivo } from './store/useMayoristasActivo'
@@ -215,13 +215,33 @@ export default function App() {
   const usuarioActivo = useStore((s) => s.usuarioActivo)
   const tienePermiso = useStore((s) => s.tienePermiso)
   const mayoristasActivoNav = useMayoristasActivo()
-  const [tabPendiente, setTabPendiente] = useState(null)
-  const [solicitarAdmin, setSolicitarAdmin] = useState(false)
+  const puedeVerMeta = usuarioActivo?.rol === 'admin' || usuarioActivo?.permisos?.meta === true
 
-  const tabs = useMemo(
-    () => (mayoristasActivoNav ? [...tabsBase, tabMayoristas, tabConfig] : [...tabsBase, tabConfig]),
-    [mayoristasActivoNav]
-  )
+  const tabs = useMemo(() => {
+    const base = [
+      { id: 'plan', label: 'Plan', Icon: Calendar, permiso: 'plan' },
+      { id: 'compras', label: 'Compras', Icon: ShoppingCart, permiso: 'compras' },
+      { id: 'venta', label: 'Venta', Icon: ShoppingBag, permiso: 'venta', centro: true },
+      { id: 'ganancias', label: 'Ganancias', Icon: TrendingUp, permiso: 'ganancias' },
+      ...(mayoristasActivoNav ? [{ id: 'mayoristas', label: 'Mayoristas', Icon: NavIconMayoristas, permiso: 'mayoristas' }] : []),
+      { id: 'config', label: 'Ajustes', Icon: Settings, permiso: 'config' },
+    ]
+    if (usuarioActivo?.rol === 'admin') return base
+    return base.filter((t) => tienePermiso(t.permiso))
+  }, [mayoristasActivoNav, usuarioActivo, tienePermiso])
+  const tabInicial = tabs[0]?.id || 'venta'
+
+  useEffect(() => {
+    // Mantiene el tab actual siempre en una opción visible (o 'venta' por fallback)
+    if (!autenticado) return
+    if (!tabs.length) {
+      if (tab !== 'venta') setTab('venta')
+      return
+    }
+    if (!tabs.some((t) => t.id === tab)) {
+      setTab(tabInicial)
+    }
+  }, [autenticado, tabs, tab, tabInicial])
   const nombreNegocio = useStore((s) => s.config.nombre_negocio)
   const nombreVendedor = useStore((s) => s.config.nombre_vendedor)
   const darkMode = useUiPreferences((s) => s.darkMode)
@@ -254,6 +274,12 @@ export default function App() {
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [panelAbierto])
+
+  useEffect(() => {
+    if (!puedeVerMeta && panelAbierto) {
+      setPanelAbierto(false)
+    }
+  }, [puedeVerMeta, panelAbierto])
 
   const applyTemaRoot = useCallback(() => {
     const rootEl = document.getElementById('root')
@@ -321,19 +347,12 @@ export default function App() {
     return <Login />
   }
 
-  const tabsConPermisos = tabs.map((t) => ({
-    ...t,
-    permitido: usuarioActivo?.rol === 'admin' ? true : tienePermiso(t.id),
-  }))
-
-  const seleccionarTab = (id, permitido) => {
-    if (permitido) {
-      setTab(id)
-      return
-    }
-    setTabPendiente(id)
-    setSolicitarAdmin(true)
+  const seleccionarTab = (id) => {
+    setTab(id)
   }
+
+  const soloUnaTab = tabs.length <= 1
+  const soloVentas = soloUnaTab && tabs[0]?.id === 'venta'
 
   return (
     <div className="relative min-h-screen overflow-x-hidden">
@@ -383,51 +402,59 @@ export default function App() {
               >
                 <LogOut size={18} strokeWidth={2} />
               </button>
-              <button
-                type="button"
-                onClick={toggleDarkMode}
-                className="rounded-xl p-2 text-[#111827] transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
-                aria-label={darkMode ? 'Activar modo claro' : 'Activar modo oscuro'}
-                title={darkMode ? 'Modo claro' : 'Modo oscuro'}
-              >
-                {darkMode ? <Sun size={20} strokeWidth={2} /> : <Moon size={20} strokeWidth={2} />}
-              </button>
-              <button
-                ref={refBotonMeta}
-                type="button"
-                onClick={togglePanel}
-                className={`rounded-xl p-2 transition-colors ${
-                  panelAbierto
-                    ? 'bg-[#1D9E75] text-white shadow-md dark:bg-emerald-600 dark:text-white'
-                    : 'text-[#111827] hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10'
-                }`}
-                aria-expanded={panelAbierto}
-                aria-controls="panel-meta-dia"
-                title="Meta del día y punto de equilibrio"
-              >
-                <TrendingUp size={18} strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                onClick={cycleFontScale}
-                className="rounded-xl p-2 text-[#111827] transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
-                aria-label={`Tamaño de texto: ${FONT_LABEL[fontScale]}`}
-                title={`Texto ${FONT_LABEL[fontScale]} — tocar para cambiar`}
-              >
-                <Type size={20} strokeWidth={2} />
-              </button>
+              {!soloVentas ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={toggleDarkMode}
+                    className="rounded-xl p-2 text-[#111827] transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
+                    aria-label={darkMode ? 'Activar modo claro' : 'Activar modo oscuro'}
+                    title={darkMode ? 'Modo claro' : 'Modo oscuro'}
+                  >
+                    {darkMode ? <Sun size={20} strokeWidth={2} /> : <Moon size={20} strokeWidth={2} />}
+                  </button>
+                  {puedeVerMeta ? (
+                    <button
+                      ref={refBotonMeta}
+                      type="button"
+                      onClick={togglePanel}
+                      className={`rounded-xl p-2 transition-colors ${
+                        panelAbierto
+                          ? 'bg-[#1D9E75] text-white shadow-md dark:bg-emerald-600 dark:text-white'
+                          : 'text-[#111827] hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10'
+                      }`}
+                      aria-expanded={panelAbierto}
+                      aria-controls="panel-meta-dia"
+                      title="Meta del día y punto de equilibrio"
+                    >
+                      <TrendingUp size={18} strokeWidth={2} />
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={cycleFontScale}
+                    className="rounded-xl p-2 text-[#111827] transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
+                    aria-label={`Tamaño de texto: ${FONT_LABEL[fontScale]}`}
+                    title={`Texto ${FONT_LABEL[fontScale]} — tocar para cambiar`}
+                  >
+                    <Type size={20} strokeWidth={2} />
+                  </button>
+                </>
+              ) : null}
             </div>
           </header>
 
-          <div
-            className={`overflow-hidden rounded-b-2xl border-t border-[#E5E7EB]/80 bg-white transition-[max-height] duration-300 ease-in-out dark:border-zinc-800/80 dark:bg-zinc-950 ${
-              panelAbierto ? 'max-h-[min(85vh,720px)] border-b border-[#E5E7EB] dark:border-zinc-800' : 'max-h-0'
-            }`}
-          >
-            <div className="max-h-[min(85vh,720px)] overflow-y-auto overscroll-contain">
-              <PanelMetaDia abierto={panelAbierto} />
+          {puedeVerMeta ? (
+            <div
+              className={`overflow-hidden rounded-b-2xl border-t border-[#E5E7EB]/80 bg-white transition-[max-height] duration-300 ease-in-out dark:border-zinc-800/80 dark:bg-zinc-950 ${
+                panelAbierto ? 'max-h-[min(85vh,720px)] border-b border-[#E5E7EB] dark:border-zinc-800' : 'max-h-0'
+              }`}
+            >
+              <div className="max-h-[min(85vh,720px)] overflow-y-auto overscroll-contain">
+                <PanelMetaDia abierto={panelAbierto} />
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
 
         {syncMsg && (
@@ -439,52 +466,106 @@ export default function App() {
           </div>
         )}
 
-        <main className="mx-auto w-full max-w-lg flex-1 px-4 py-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))]">
-          {tab === 'venta' && <PuntoDeVenta />}
-          {tab === 'plan' && <PlanDiario />}
-          {tab === 'compras' && <Compras />}
-          {tab === 'ganancias' && <Ganancias />}
-          {tab === 'mayoristas' && mayoristasActivoNav && <Mayoristas />}
-          {tab === 'config' && <Configuracion />}
+        <main
+          className={`mx-auto w-full max-w-lg flex-1 px-4 py-4 ${
+            soloUnaTab ? 'pb-[calc(6rem+env(safe-area-inset-bottom,0px))]' : 'pb-[calc(7rem+env(safe-area-inset-bottom,0px))]'
+          }`}
+        >
+          {tab === 'venta' && tabs.some((t) => t.id === 'venta') ? <PuntoDeVenta /> : null}
+          {tab === 'plan' && tabs.some((t) => t.id === 'plan') ? <PlanDiario /> : null}
+          {tab === 'compras' && tabs.some((t) => t.id === 'compras') ? <Compras /> : null}
+          {tab === 'ganancias' && tabs.some((t) => t.id === 'ganancias') ? <Ganancias /> : null}
+          {tab === 'mayoristas' && tabs.some((t) => t.id === 'mayoristas') && mayoristasActivoNav ? <Mayoristas /> : null}
+          {tab === 'config' && tabs.some((t) => t.id === 'config') ? <Configuracion /> : null}
         </main>
 
-        <nav className="app-shell-nav fixed bottom-0 left-0 right-0 z-20 border-t border-[#E5E7EB] bg-white shadow-nav transition-colors duration-200 dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="mx-auto flex max-w-lg pb-[env(safe-area-inset-bottom,0px)]">
-            {tabsConPermisos.map(({ id, label, Icon, permitido }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => seleccionarTab(id, permitido)}
-                className={`flex flex-1 flex-col items-center gap-1 border-t-2 py-2.5 text-xs font-semibold transition-colors -mt-px
-                ${
-                  tab === id
-                    ? 'border-brand bg-emerald-50 text-brand-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:border-brand dark:bg-emerald-950/50 dark:text-brand-soft dark:shadow-none'
-                    : 'border-transparent text-[#374151] hover:bg-gray-100/80 hover:text-[#111827] dark:text-zinc-400 dark:hover:bg-zinc-900/80 dark:hover:text-zinc-100'
-                }`}
-              >
-                {id === 'mayoristas' ? (
-                  <NavIconMayoristas size={20} />
-                ) : (
-                  <Icon size={20} strokeWidth={tab === id ? 2.25 : 2} />
-                )}
-                {permitido ? label : `🔒 ${label}`}
-              </button>
-            ))}
-          </div>
-        </nav>
+        {(!soloUnaTab || (soloUnaTab && soloVentas && tabs.some((t) => t.id === 'venta'))) ? (
+          <nav className="app-shell-nav fixed bottom-0 left-0 right-0 z-20 border-t border-[#E5E7EB] bg-white shadow-nav transition-colors duration-200 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="relative mx-auto max-w-lg pb-[env(safe-area-inset-bottom,0px)]">
+              {tabs.some((t) => t.id === 'venta') ? (
+                <>
+                  <div className="flex">
+                    {tabs
+                      .filter((t) => t.id !== 'venta')
+                      .slice(0, Math.ceil((tabs.length - 1) / 2))
+                      .map(({ id, label, Icon }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => seleccionarTab(id)}
+                          className={`flex flex-1 flex-col items-center gap-1 border-t-2 py-2.5 text-xs font-semibold transition-colors -mt-px
+                          ${
+                            tab === id
+                              ? 'border-brand bg-emerald-50 text-brand-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:border-brand dark:bg-emerald-950/50 dark:text-brand-soft dark:shadow-none'
+                              : 'border-transparent text-[#374151] hover:bg-gray-100/80 hover:text-[#111827] dark:text-zinc-400 dark:hover:bg-zinc-900/80 dark:hover:text-zinc-100'
+                          }`}
+                        >
+                          {id === 'mayoristas' ? <NavIconMayoristas size={20} /> : <Icon size={20} strokeWidth={tab === id ? 2.25 : 2} />}
+                          {label}
+                        </button>
+                      ))}
+
+                    <div className="flex-1" aria-hidden />
+
+                    {tabs
+                      .filter((t) => t.id !== 'venta')
+                      .slice(Math.ceil((tabs.length - 1) / 2))
+                      .map(({ id, label, Icon }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => seleccionarTab(id)}
+                          className={`flex flex-1 flex-col items-center gap-1 border-t-2 py-2.5 text-xs font-semibold transition-colors -mt-px
+                          ${
+                            tab === id
+                              ? 'border-brand bg-emerald-50 text-brand-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:border-brand dark:bg-emerald-950/50 dark:text-brand-soft dark:shadow-none'
+                              : 'border-transparent text-[#374151] hover:bg-gray-100/80 hover:text-[#111827] dark:text-zinc-400 dark:hover:bg-zinc-900/80 dark:hover:text-zinc-100'
+                          }`}
+                        >
+                          {id === 'mayoristas' ? <NavIconMayoristas size={20} /> : <Icon size={20} strokeWidth={tab === id ? 2.25 : 2} />}
+                          {label}
+                        </button>
+                      ))}
+                  </div>
+
+                  <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2">
+                    <button
+                      type="button"
+                      onClick={() => seleccionarTab('venta')}
+                      className="pointer-events-auto -mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#1D9E75] text-white shadow-[0_10px_25px_rgba(0,0,0,0.25)] transition-transform active:scale-[0.98] border-[3px] border-white dark:border-zinc-950"
+                    >
+                      <span className="sr-only">Venta</span>
+                      <ShoppingBag size={24} strokeWidth={2.5} />
+                    </button>
+                    <p className="mt-1 text-center text-[10px] font-semibold text-[#1D9E75] dark:text-emerald-300">
+                      Venta
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="flex">
+                  {tabs.map(({ id, label, Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => seleccionarTab(id)}
+                      className={`flex flex-1 flex-col items-center gap-1 border-t-2 py-2.5 text-xs font-semibold transition-colors -mt-px
+                      ${
+                        tab === id
+                          ? 'border-brand bg-emerald-50 text-brand-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:border-brand dark:bg-emerald-950/50 dark:text-brand-soft dark:shadow-none'
+                          : 'border-transparent text-[#374151] hover:bg-gray-100/80 hover:text-[#111827] dark:text-zinc-400 dark:hover:bg-zinc-900/80 dark:hover:text-zinc-100'
+                      }`}
+                    >
+                      {id === 'mayoristas' ? <NavIconMayoristas size={20} /> : <Icon size={20} strokeWidth={tab === id ? 2.25 : 2} />}
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </nav>
+        ) : null}
       </div>
-      <SolicitudPin
-        abierto={solicitarAdmin}
-        onCancelar={() => {
-          setSolicitarAdmin(false)
-          setTabPendiente(null)
-        }}
-        onConfirmar={() => {
-          if (tabPendiente) setTab(tabPendiente)
-          setSolicitarAdmin(false)
-          setTabPendiente(null)
-        }}
-      />
     </div>
   )
 }

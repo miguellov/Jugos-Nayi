@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '../supabase'
 import { useStore } from '../store/useStore'
 
 function avatarInicial(nombre) {
@@ -8,9 +9,9 @@ function avatarInicial(nombre) {
 
 export default function Login() {
   const config = useStore((s) => s.config)
-  const usuarios = useStore((s) => s.usuarios)
-  const cargarUsuarios = useStore((s) => s.cargarUsuarios)
   const login = useStore((s) => s.login)
+  const [usuarios, setUsuarios] = useState([])
+  const [cargandoUsuarios, setCargandoUsuarios] = useState(true)
   const [usuarioId, setUsuarioId] = useState('')
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
@@ -19,10 +20,27 @@ export default function Login() {
   const [shake, setShake] = useState(false)
 
   useEffect(() => {
-    void cargarUsuarios()
-  }, [cargarUsuarios])
+    const cargar = async () => {
+      try {
+        if (!supabase) {
+          setUsuarios([])
+          return
+        }
+        const { data, error } = await supabase
+          .from('usuarios')
+          .select('id, nombre, usuario, foto, activo')
+          .eq('activo', true)
+          .order('nombre', { ascending: true })
+        if (error) console.error('Error cargando usuarios:', error)
+        setUsuarios(data || [])
+      } finally {
+        setCargandoUsuarios(false)
+      }
+    }
+    void cargar()
+  }, [])
 
-  const activos = useMemo(() => usuarios.filter((u) => u.activo), [usuarios])
+  const activos = useMemo(() => (usuarios || []).filter((u) => u.activo !== false), [usuarios])
   const bloqueoRestante = Math.max(0, Math.ceil((bloqueadoHasta - Date.now()) / 1000))
   const bloqueado = bloqueoRestante > 0
 
@@ -54,6 +72,27 @@ export default function Login() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin])
 
+  if (cargandoUsuarios) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-white">
+        <p className="text-sm font-medium text-zinc-300">Cargando usuarios...</p>
+      </div>
+    )
+  }
+
+  if (!activos.length) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-white">
+        <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900/80 p-5 text-center">
+          <p className="text-sm font-semibold">No hay usuarios activos</p>
+          <p className="mt-2 text-xs text-zinc-300">
+            Crea usuarios en la tabla <span className="font-mono">usuarios</span> (Supabase) o activa uno existente.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-white">
       <style>{`
@@ -83,7 +122,6 @@ export default function Login() {
             onChange={(e) => setUsuarioId(e.target.value)}
             className="w-full rounded-xl border border-white/15 bg-zinc-800 px-3 py-2.5 text-sm"
           >
-            {activos.length === 0 ? <option value="">Sin usuarios activos</option> : null}
             {activos.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.nombre} (@{u.usuario})

@@ -131,6 +131,7 @@ export default function Configuracion() {
   const [pinInput, setPinInput] = useState(() => String(config.pin || '').replace(/\D/g, '').slice(0, 4))
   const [pinActivo, setPinActivo] = useState(Boolean(config.pin_activo))
   const [metaDiaria, setMetaDiaria] = useState(String(config.meta_diaria ?? 65))
+  const [notaDelDia, setNotaDelDia] = useState(String(config.nota_del_dia || ''))
 
   const [toast, setToast] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -158,10 +159,31 @@ export default function Configuracion() {
     ganancias: false,
     mayoristas: false,
     config: false,
+    meta: false,
   })
   const [pinActual, setPinActual] = useState('')
   const [pinNuevo, setPinNuevo] = useState('')
   const [pinConfirmar, setPinConfirmar] = useState('')
+
+  const etiquetasPermisos = useMemo(
+    () => ({
+      venta: 'Venta',
+      plan: 'Plan',
+      compras: 'Compras',
+      ganancias: 'Ganancias',
+      mayoristas: 'Mayoristas',
+      config: 'Ajustes',
+      meta: 'Meta del día',
+    }),
+    []
+  )
+
+  const previewPermisos = useMemo(() => {
+    const keys = Object.keys(etiquetasPermisos)
+    const si = keys.filter((k) => usrPermisos?.[k] === true).map((k) => etiquetasPermisos[k])
+    const no = keys.filter((k) => !usrPermisos?.[k]).map((k) => etiquetasPermisos[k])
+    return { si, no }
+  }, [usrPermisos, etiquetasPermisos])
 
   const mayoristasModuloActivo = useMayoristasActivo()
 
@@ -195,6 +217,7 @@ export default function Configuracion() {
     setPinInput(String(config.pin || '').replace(/\D/g, '').slice(0, 4))
     setPinActivo(Boolean(config.pin_activo))
     setMetaDiaria(String(config.meta_diaria ?? 65))
+    setNotaDelDia(String(config.nota_del_dia || ''))
   }, [config])
 
   const mostrarToast = (msg) => {
@@ -277,6 +300,7 @@ export default function Configuracion() {
         pin: pinInput,
         pin_activo: pinActivo,
         meta_diaria: metaDiaria,
+        nota_del_dia: notaDelDia,
       })
       mostrarToast('✅ Cambios guardados')
     } finally {
@@ -297,6 +321,7 @@ export default function Configuracion() {
       ganancias: false,
       mayoristas: false,
       config: false,
+      meta: false,
     })
   }
 
@@ -306,7 +331,16 @@ export default function Configuracion() {
     setUsrHandle(u.usuario)
     setUsrPin('')
     setUsrActivo(u.activo !== false)
-    setUsrPermisos({ ...u.permisos })
+    setUsrPermisos({
+      venta: true,
+      plan: false,
+      compras: false,
+      ganancias: false,
+      mayoristas: false,
+      config: false,
+      meta: false,
+      ...(u.permisos || {}),
+    })
   }
 
   const guardarUsuario = async () => {
@@ -722,6 +756,23 @@ export default function Configuracion() {
             </p>
           </div>
 
+          <div>
+            <label className={fieldLabel} htmlFor="cfg-nota-dia">
+              Nota del día (para empleados)
+            </label>
+            <textarea
+              id="cfg-nota-dia"
+              value={notaDelDia}
+              onChange={(e) => setNotaDelDia(e.target.value.slice(0, 180))}
+              rows={3}
+              placeholder="Ej. Recordar ofrecer el mix tropical"
+              className={inputClass}
+            />
+            <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+              Se muestra en Punto de venta cuando el usuario solo tiene permiso de ventas.
+            </p>
+          </div>
+
           <div className="rounded-xl border border-[#1D9E75]/20 bg-emerald-50/30 p-4 dark:border-brand/25 dark:bg-emerald-950/20">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#1D9E75] dark:text-brand-soft">
               🏪 Ventas mayoristas
@@ -881,6 +932,7 @@ export default function Configuracion() {
                 ['ganancias', '💰 Ganancias'],
                 ['mayoristas', '🏪 Mayoristas'],
                 ['config', '⚙️ Ajustes'],
+                ['meta', '📈 Ver meta del día'],
               ].map(([k, label]) => (
                 <label key={k} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2">
                   <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
@@ -891,6 +943,15 @@ export default function Configuracion() {
                   />
                 </label>
               ))}
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm dark:bg-zinc-900/40">
+                <p className="font-semibold text-gray-800 dark:text-gray-100">
+                  Este usuario verá: <span className="text-[#1D9E75] dark:text-brand-soft">{previewPermisos.si.join(', ') || 'Nada'}</span>
+                </p>
+                <p className="mt-1 text-gray-600 dark:text-gray-300">
+                  Este usuario NO verá:{' '}
+                  <span className="font-medium text-gray-700 dark:text-gray-200">{previewPermisos.no.join(', ') || '—'}</span>
+                </p>
+              </div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setEditandoUsuarioId(null)} className="flex-1 rounded-xl border border-zinc-300 py-2 text-sm font-semibold">
                   Cancelar
