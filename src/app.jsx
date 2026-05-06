@@ -1,10 +1,11 @@
 import { useState, useLayoutEffect, useEffect } from 'react'
-import { ShoppingBag, Calendar, ShoppingCart, TrendingUp, Moon, Sun, Type } from 'lucide-react'
+import { ShoppingBag, Calendar, ShoppingCart, TrendingUp, Settings, Moon, Sun, Type } from 'lucide-react'
 import JuiceBackdrop from './components/JuiceBackdrop'
 import PuntoDeVenta from './components/PuntoDeVenta'
 import PlanDiario from './components/PlanDiario'
 import Compras from './components/Compra'
 import Ganancias from './components/Ganancia'
+import Configuracion from './components/Configuracion'
 import { useUiPreferences } from './store/useUiPreferences'
 import { useStore } from './store/useStore'
 
@@ -13,6 +14,7 @@ const tabs = [
   { id: 'plan', label: 'Plan', Icon: Calendar },
   { id: 'compras', label: 'Compras', Icon: ShoppingCart },
   { id: 'ganancias', label: 'Ganancias', Icon: TrendingUp },
+  { id: 'config', label: 'Ajustes', Icon: Settings },
 ]
 
 const FONT_PX = { s: '15px', m: '16px', l: '18px' }
@@ -23,8 +25,10 @@ export default function App() {
   const [bootstrapped, setBootstrapped] = useState(false)
   const [syncMsg, setSyncMsg] = useState(null)
   const cargarVentas = useStore((s) => s.cargarVentas)
+  const cargarConfig = useStore((s) => s.cargarConfig)
   const cargarPlan = useStore((s) => s.cargarPlan)
   const cargarCompras = useStore((s) => s.cargarCompras)
+  const nombreNegocio = useStore((s) => s.config.nombre_negocio)
   const darkMode = useUiPreferences((s) => s.darkMode)
   const fontScale = useUiPreferences((s) => s.fontScale)
   const toggleDarkMode = useUiPreferences((s) => s.toggleDarkMode)
@@ -38,7 +42,7 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([cargarVentas(), cargarPlan(), cargarCompras()])
+    Promise.all([cargarVentas(), cargarConfig(), cargarPlan(), cargarCompras()])
       .then(() => {
         if (cancelled) return
         setBootstrapped(true)
@@ -53,7 +57,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [cargarVentas, cargarPlan, cargarCompras])
+  }, [cargarVentas, cargarConfig, cargarPlan, cargarCompras])
 
   if (!bootstrapped) {
     return (
@@ -78,7 +82,7 @@ export default function App() {
           </span>
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold tracking-tight text-gray-950 dark:text-white">
-              JUGOS NAYI
+              {nombreNegocio || 'Jugos Nayi'}
             </h1>
             <p className="text-xs font-medium text-gray-700 dark:text-zinc-300">
               {new Date().toLocaleDateString('es-DO', {
@@ -124,6 +128,7 @@ export default function App() {
           {tab === 'plan' && <PlanDiario />}
           {tab === 'compras' && <Compras />}
           {tab === 'ganancias' && <Ganancias />}
+          {tab === 'config' && <Configuracion />}
         </main>
 
         <nav className="fixed bottom-0 left-0 right-0 z-20 border-t border-gray-200/90 bg-white shadow-nav dark:border-zinc-800 dark:bg-zinc-950">

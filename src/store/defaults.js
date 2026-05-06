@@ -1,12 +1,32 @@
-export const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+export const DIAS = [
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+  'Domingo',
+]
 
-/** Índice en `plan` / `DIAS` según el día de hoy (Rep. Dominicana). */
+/** Domingo = 0 … Sábado = 6 (`Date.getDay()`). Alineado con filas `plan_diario.dia`. */
+export const DIAS_JS_WEEK = [
+  'Domingo',
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+]
+
+export function diaSemanaHoy() {
+  return DIAS_JS_WEEK[new Date().getDay()]
+}
+
+/** Índice en `DIAS` (Lunes primero en plan) según el calendario local. */
 export function todayPlanIndex() {
-  const long = new Date().toLocaleDateString('es-DO', { weekday: 'long' })
-  const cap = long.charAt(0).toUpperCase() + long.slice(1)
-  const i = DIAS.indexOf(cap)
-  // Domingo u otro día fuera del plan L–S: contabilizar en Sábado (última fila)
-  return i >= 0 ? i : DIAS.length - 1
+  const i = DIAS.indexOf(diaSemanaHoy())
+  return i >= 0 ? i : 0
 }
 
 export const DEFAULT_SABORES = [

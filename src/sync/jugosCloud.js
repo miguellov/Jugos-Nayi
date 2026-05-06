@@ -38,7 +38,7 @@ function snapshotFromStore(s) {
 
 function mergeServerState(raw) {
   if (!raw || typeof raw !== 'object') return null
-  const dias = 6
+  const dias = 7
   return {
     sabores:
       Array.isArray(raw.sabores) && raw.sabores.length > 0

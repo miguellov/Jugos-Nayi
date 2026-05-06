@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus, Minus, Check, Trash2 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import GestionSabores from './GestionSabores'
@@ -17,6 +17,15 @@ export default function PuntoDeVenta() {
   const [tam, setTam] = useState(null)
   const [qty, setQty] = useState(1)
   const [toast, setToast] = useState('')
+
+  const vendidosHoyPorNombre = useMemo(() => {
+    const m = {}
+    for (const v of ventas) {
+      const n = v.sabor
+      m[n] = (m[n] || 0) + (Number(v.qty) || 0)
+    }
+    return m
+  }, [ventas])
 
   const elegido = sabores.find((x) => x.id === sabor)
   const stockDisp = elegido?.stock ?? 0
@@ -89,6 +98,7 @@ export default function PuntoDeVenta() {
         <div className="grid grid-cols-2 gap-2">
           {sabores.map((s) => {
             const agotado = s.stock <= 0
+            const vendHoy = vendidosHoyPorNombre[s.nombre] ?? 0
             return (
               <button
                 key={s.id}
@@ -108,8 +118,13 @@ export default function PuntoDeVenta() {
                     agotado ? 'text-red-500' : 'text-brand-dark dark:text-brand-soft'
                   }`}
                 >
-                  {agotado ? 'Agotado' : `Quedan: ${s.stock}`}
+                  {agotado ? 'Agotado' : `Vendidos hoy: ${vendHoy}`}
                 </span>
+                {!agotado && (
+                  <span className="mt-0.5 block text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                    Disponible: {s.stock}
+                  </span>
+                )}
               </button>
             )
           })}
@@ -122,9 +137,9 @@ export default function PuntoDeVenta() {
         </p>
         <div className="grid grid-cols-2 gap-3">
           {[
-            ['grande', 'Grande', '$100', 28],
-            ['pequeno', 'Pequeño', '$65', 20],
-          ].map(([id, label, precioTxt, sz]) => (
+            ['grande', 'Grande', PG, 28],
+            ['pequeno', 'Pequeño', PP, 20],
+          ].map(([id, label, precioNum, sz]) => (
             <button
               key={id}
               type="button"
@@ -138,7 +153,9 @@ export default function PuntoDeVenta() {
                 🥤
               </span>
               <span className="block text-sm font-bold text-gray-900 dark:text-gray-100">{label}</span>
-              <span className="text-xs text-brand-dark dark:text-brand-soft">{precioTxt}</span>
+              <span className="text-xs text-brand-dark dark:text-brand-soft">
+                ${Number(precioNum).toLocaleString()}
+              </span>
             </button>
           ))}
         </div>

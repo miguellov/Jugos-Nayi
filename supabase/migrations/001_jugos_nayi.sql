@@ -20,7 +20,8 @@ create table if not exists public.plan_diario (
   pp integer not null default 0,
   vg integer not null default 0,
   vp integer not null default 0,
-  semana text not null
+  semana date not null,
+  cerrada boolean not null default false
 );
 
 create table if not exists public.compras (
