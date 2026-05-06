@@ -662,7 +662,6 @@ export default function Mayoristas() {
                     ref={refFotoCliente}
                     type="file"
                     accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-                    capture="environment"
                     className="hidden"
                     onChange={(ev) => void onSeleccionarFotoCliente(ev)}
                   />
