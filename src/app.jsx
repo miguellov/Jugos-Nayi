@@ -20,6 +20,7 @@ const FONT_LABEL = { s: 'pequeño', m: 'mediano', l: 'grande' }
 
 export default function App() {
   const [tab, setTab] = useState('venta')
+  const [bootstrapped, setBootstrapped] = useState(false)
   const [syncMsg, setSyncMsg] = useState(null)
   const darkMode = useUiPreferences((s) => s.darkMode)
   const fontScale = useUiPreferences((s) => s.fontScale)
@@ -34,14 +35,32 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-    initJugosCloud().then((r) => {
-      if (cancelled) return
-      if (!r.ok && r.error) setSyncMsg(r.error)
-    })
+    initJugosCloud()
+      .then((r) => {
+        if (cancelled) return
+        if (!r.ok && r.error) setSyncMsg(r.error)
+        setBootstrapped(true)
+      })
+      .catch((e) => {
+        console.error(e)
+        if (!cancelled) {
+          setSyncMsg(String(e?.message ?? e))
+          setBootstrapped(true)
+        }
+      })
     return () => {
       cancelled = true
     }
   }, [])
+
+  if (!bootstrapped) {
+    return (
+      <div className="relative flex min-h-screen flex-col items-center justify-center gap-3 bg-gradient-to-b from-emerald-50/90 via-white to-amber-50/40 px-4 dark:from-zinc-950 dark:via-zinc-950 dark:to-emerald-950/30">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-brand border-t-transparent dark:border-brand-soft" />
+        <p className="text-sm font-medium text-gray-700 dark:text-zinc-300">Sincronizando datos…</p>
+      </div>
+    )
+  }
 
   return (
     <div className="relative min-h-screen overflow-x-hidden">

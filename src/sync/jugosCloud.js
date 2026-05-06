@@ -8,12 +8,22 @@ import {
   defaultPlan,
 } from '../store/defaults'
 
-const DEBOUNCE_MS = 700
+const DEBOUNCE_MS = 350
 
 let saveTimer = null
 /** Evita upsert durante la hidratación; se activa al terminar init (incl. Strict Mode). */
 let cloudSaveEnabled = false
 let listenerAttached = false
+let lifecycleFlushRegistered = false
+
+function registerLifecycleFlush() {
+  if (typeof window === 'undefined' || lifecycleFlushRegistered) return
+  lifecycleFlushRegistered = true
+  window.addEventListener('pagehide', () => flushPendingCloudSave())
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingCloudSave()
+  })
+}
 
 function snapshotFromStore(s) {
   return {
@@ -76,6 +86,17 @@ async function saveCloudState(partialSnapshot) {
 
   if (error) console.error('[Supabase] save', error)
 }
+
+/** Guarda de inmediato (p. ej. al cerrar pestaña o cambiar de app) para no perder el debounce. */
+export function flushPendingCloudSave() {
+  clearTimeout(saveTimer)
+  saveTimer = null
+  if (!cloudSaveEnabled || !isSupabaseConfigured()) return
+  const snap = snapshotFromStore(useStore.getState())
+  void saveCloudState(snap)
+}
+
+registerLifecycleFlush()
 
 /**
  * Carga la nube, hidrata Zustand y escucha cambios para guardar (debounce).
