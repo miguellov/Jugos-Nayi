@@ -7,11 +7,25 @@
     <script>
       (function () {
         try {
-          var raw = localStorage.getItem('jugos-nayi-ui')
-          if (!raw) return
-          var data = JSON.parse(raw)
-          var st = data.state != null ? data.state : data
-          if (st.darkMode) document.documentElement.classList.add('dark')
+          var tema = localStorage.getItem('tema')
+          var oscuro = false
+          if (tema === 'oscuro') oscuro = true
+          else if (tema === 'claro') oscuro = false
+          else {
+            var raw = localStorage.getItem('jugos-nayi-ui')
+            if (raw) {
+              var data = JSON.parse(raw)
+              var st = data.state != null ? data.state : data
+              oscuro = !!st.darkMode
+            }
+          }
+          if (oscuro) document.documentElement.classList.add('dark')
+          else document.documentElement.classList.remove('dark')
+
+          var rawUi = localStorage.getItem('jugos-nayi-ui')
+          if (!rawUi) return
+          var dataUi = JSON.parse(rawUi)
+          var st = dataUi.state != null ? dataUi.state : dataUi
           var fs = st.fontScale
           if (fs === 's') document.documentElement.style.fontSize = '15px'
           else if (fs === 'l') document.documentElement.style.fontSize = '18px'
@@ -22,6 +36,27 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        try {
+          var tema = localStorage.getItem('tema')
+          var oscuro = tema === 'oscuro'
+          if (tema !== 'claro' && tema !== 'oscuro') {
+            var raw = localStorage.getItem('jugos-nayi-ui')
+            if (raw) {
+              var data = JSON.parse(raw)
+              var st = data.state != null ? data.state : data
+              oscuro = !!st.darkMode
+            }
+          }
+          var r = document.getElementById('root')
+          if (r) {
+            r.classList.remove('tema-claro', 'tema-oscuro')
+            r.classList.add(oscuro ? 'tema-oscuro' : 'tema-claro')
+          }
+        } catch (e) {}
+      })()
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

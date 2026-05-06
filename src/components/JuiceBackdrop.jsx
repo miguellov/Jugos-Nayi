@@ -3,7 +3,7 @@
  */
 export default function JuiceBackdrop() {
   return (
-    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden>
+    <div className="juice-backdrop pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden>
       <div className="absolute -top-48 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-gradient-to-b from-amber-200/50 via-orange-100/20 to-transparent blur-3xl dark:from-amber-500/15 dark:via-orange-400/10 dark:to-transparent" />
       <div className="absolute -right-24 top-[8%] h-[min(95vw,26rem)] w-[min(95vw,26rem)] rounded-full bg-gradient-to-bl from-amber-300/45 via-orange-200/30 to-transparent blur-3xl dark:from-amber-600/12 dark:via-orange-500/8 dark:to-transparent" />
       <div className="absolute -left-28 top-[28%] h-[min(85vw,22rem)] w-[min(85vw,22rem)] rounded-full bg-gradient-to-br from-emerald-400/35 via-teal-300/20 to-transparent blur-3xl dark:from-emerald-500/15 dark:via-teal-600/10 dark:to-transparent" />

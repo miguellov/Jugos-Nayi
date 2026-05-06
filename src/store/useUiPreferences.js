@@ -7,7 +7,15 @@ export const useUiPreferences = create(
       darkMode: false,
       /** @type {'s' | 'm' | 'l'} */
       fontScale: 'm',
-      toggleDarkMode: () => set({ darkMode: !get().darkMode }),
+      toggleDarkMode: () => {
+        const next = !get().darkMode
+        try {
+          localStorage.setItem('tema', next ? 'oscuro' : 'claro')
+        } catch {
+          /* ignore */
+        }
+        set({ darkMode: next })
+      },
       cycleFontScale: () =>
         set((s) => ({
           fontScale: s.fontScale === 's' ? 'm' : s.fontScale === 'm' ? 'l' : 's',

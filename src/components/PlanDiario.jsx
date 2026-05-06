@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { useStore, parseDateLocal } from '../store/useStore'
+import { useStore, parseDateLocal, formatConMoneda } from '../store/useStore'
 import { diaSemanaHoy } from '../store/defaults'
 
 const inputCell =
@@ -30,10 +30,12 @@ export default function PlanDiario() {
   const semanaSeleccionada = useStore((s) => s.semanaSeleccionada)
   const PG = useStore((s) => s.PG)
   const PP = useStore((s) => s.PP)
+  const config = useStore((s) => s.config)
   const cargarPlan = useStore((s) => s.cargarPlan)
   const cargarPlanPorSemana = useStore((s) => s.cargarPlanPorSemana)
   const cargarSemanas = useStore((s) => s.cargarSemanas)
   const cerrarSemana = useStore((s) => s.cerrarSemana)
+  const reabrirSemana = useStore((s) => s.reabrirSemana)
   const updatePlan = useStore((s) => s.updatePlan)
 
   const opcionesSemana = useMemo(() => {
@@ -53,6 +55,12 @@ export default function PlanDiario() {
     semanaSeleccionada === semanaActiva &&
     plan.length > 0 &&
     !plan[0].cerrada
+
+  const puedeReabrir =
+    Boolean(semanaSeleccionada) &&
+    semanaSeleccionada === semanaActiva &&
+    plan.length > 0 &&
+    plan[0].cerrada
 
   const tots = plan.reduce(
     (a, r) => ({
@@ -74,6 +82,10 @@ export default function PlanDiario() {
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- al montar Plan solamente
   }, [])
+
+  useEffect(() => {
+    useStore.getState().calcularPuntoEquilibrio()
+  }, [plan, PG, PP])
 
   return (
     <div className="space-y-4">
@@ -123,6 +135,15 @@ export default function PlanDiario() {
               className="rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-950 shadow-sm transition hover:bg-amber-100/90 active:scale-[0.99] dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/55"
             >
               Cerrar semana
+            </button>
+          )}
+          {puedeReabrir && (
+            <button
+              type="button"
+              onClick={() => void reabrirSemana()}
+              className="rounded-xl border border-orange-500/70 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-950 shadow-sm transition hover:bg-orange-100/90 active:scale-[0.99] dark:border-orange-400/50 dark:bg-orange-950/45 dark:text-orange-100 dark:hover:bg-orange-950/65"
+            >
+              🔓 Reabrir semana
             </button>
           )}
         </div>
@@ -269,7 +290,7 @@ export default function PlanDiario() {
                           </td>
                         ))}
                         <td className="px-2 py-2 align-middle font-medium text-brand dark:text-brand-soft">
-                          ${ing.toLocaleString()}
+                          {formatConMoneda(config, ing)}
                         </td>
                         <td className="px-2 py-2 align-middle">{badge}</td>
                       </tr>
@@ -283,7 +304,9 @@ export default function PlanDiario() {
                     <td className="px-2 py-2 text-center">{tots.pp}</td>
                     <td className="px-2 py-2 text-center">{tots.vg}</td>
                     <td className="px-2 py-2 text-center">{tots.vp}</td>
-                    <td className="px-2 py-2 text-brand dark:text-brand-soft">${tots.ing.toLocaleString()}</td>
+                    <td className="px-2 py-2 text-brand dark:text-brand-soft">
+                      {formatConMoneda(config, tots.ing)}
+                    </td>
                     <td></td>
                   </tr>
                 </tfoot>
