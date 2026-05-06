@@ -113,7 +113,7 @@ export default function App() {
             className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs font-medium text-amber-950 dark:border-amber-800/50 dark:bg-amber-950/50 dark:text-amber-100"
             role="alert"
           >
-            {syncMsg} Los cambios no se guardan en la nube hasta que funcione la conexión.
+            {syncMsg}
           </div>
         )}
 

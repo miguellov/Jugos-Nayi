@@ -103,21 +103,21 @@ registerLifecycleFlush()
 
 /**
  * Carga la nube, hidrata Zustand y escucha cambios para guardar (debounce).
+ * Si falla auth o la tabla, los datos siguen en localStorage (persist del store).
  */
 export async function initJugosCloud() {
+  if (typeof useStore.persist?.rehydrate === 'function') {
+    await useStore.persist.rehydrate()
+  }
+
   if (!isSupabaseConfigured()) {
     return { ok: true, mode: 'local' }
   }
 
-  const { session, authError } = await ensureSession()
+  const { session } = await ensureSession()
   if (!session?.user) {
-    const hint =
-      ' Supabase → Authentication → Providers → Anonymous (activado). En Vercel: VITE_SUPABASE_* y Redeploy.'
-    return {
-      ok: false,
-      mode: 'cloud',
-      error: (authError || 'No se pudo iniciar sesión anónima.') + hint,
-    }
+    console.warn('[Jugos] Sin sesión Supabase: usando solo guardado en este dispositivo (localStorage).')
+    return { ok: true, mode: 'local' }
   }
 
   const { data, error } = await supabase
@@ -128,7 +128,7 @@ export async function initJugosCloud() {
 
   if (error) {
     console.error('[Supabase] load', error)
-    return { ok: false, mode: 'cloud', error: error.message }
+    return { ok: true, mode: 'local' }
   }
 
   const rawState =
