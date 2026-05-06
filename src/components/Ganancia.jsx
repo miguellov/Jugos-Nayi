@@ -1,8 +1,9 @@
 import { useStore } from '../store/useStore'
 
 export default function Ganancias() {
-  const { plan, compras, PG, PP } = useStore()
+  const { plan, compras, PG, PP, ventas } = useStore()
   const ingresos = plan.reduce((a, r) => a + r.vg * PG + r.vp * PP, 0)
+  const ingresoCajaHoy = ventas.reduce((a, v) => a + (v.total || 0), 0)
   const gastos = compras.reduce((a, c) => a + (c.cantidad || 0) * (c.precio || 0), 0)
   const neta = ingresos - gastos
 
@@ -63,7 +64,12 @@ export default function Ganancias() {
         {[
           ['Precio jugo grande', '$' + PG, 'text-gray-700 dark:text-gray-200'],
           ['Precio jugo pequeño', '$' + PP, 'text-gray-700 dark:text-gray-200'],
-          ['Total ingresos', '$' + ingresos.toLocaleString(), 'text-brand dark:text-brand-soft'],
+          [
+            'Ventas hoy (caja)',
+            '$' + ingresoCajaHoy.toLocaleString(),
+            'text-gray-700 dark:text-gray-200',
+          ],
+          ['Total ingresos (plan semanal)', '$' + ingresos.toLocaleString(), 'text-brand dark:text-brand-soft'],
           ['Total gastos compras', '$' + gastos.toLocaleString(), 'text-red-500 dark:text-red-400'],
         ].map(([label, val, cls]) => (
           <div key={label} className="flex items-center justify-between text-sm">

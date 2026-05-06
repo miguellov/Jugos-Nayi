@@ -1,5 +1,14 @@
 export const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
+/** Índice en `plan` / `DIAS` según el día de hoy (Rep. Dominicana). */
+export function todayPlanIndex() {
+  const long = new Date().toLocaleDateString('es-DO', { weekday: 'long' })
+  const cap = long.charAt(0).toUpperCase() + long.slice(1)
+  const i = DIAS.indexOf(cap)
+  // Domingo u otro día fuera del plan L–S: contabilizar en Sábado (última fila)
+  return i >= 0 ? i : DIAS.length - 1
+}
+
 export const DEFAULT_SABORES = [
   { id: 'naranja', nombre: 'Naranja', emoji: '🍊', stock: 50 },
   { id: 'chinola', nombre: 'Chinola', emoji: '🟡', stock: 40 },

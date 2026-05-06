@@ -5,6 +5,7 @@ import {
   DEFAULT_PP,
   DEFAULT_SABORES,
   defaultPlan,
+  todayPlanIndex,
 } from './defaults'
 
 function restaurarStockPorVenta(sabores, venta) {
@@ -47,6 +48,8 @@ export const useStore = create((set) => ({
   ventas: [],
   agregarVenta: (venta) =>
     set((s) => {
+      const planDayIndex = todayPlanIndex()
+      const ventaConDia = { ...venta, planDayIndex }
       const sabores = venta.saborId
         ? s.sabores.map((x) =>
             x.id === venta.saborId
@@ -54,22 +57,52 @@ export const useStore = create((set) => ({
               : x
           )
         : s.sabores
-      return { ventas: [venta, ...s.ventas], sabores }
+      const plan = [...s.plan]
+      const row = { ...plan[planDayIndex] }
+      if (venta.tam === 'grande') row.vg = (row.vg || 0) + venta.qty
+      else if (venta.tam === 'pequeno') row.vp = (row.vp || 0) + venta.qty
+      plan[planDayIndex] = row
+      return { ventas: [ventaConDia, ...s.ventas], sabores, plan }
     }),
   eliminarVenta: (i) =>
     set((s) => {
       const venta = s.ventas[i]
       const ventas = s.ventas.filter((_, idx) => idx !== i)
       const sabores = venta ? restaurarStockPorVenta(s.sabores, venta) : s.sabores
-      return { ventas, sabores }
+      let plan = s.plan
+      if (venta) {
+        const idx =
+          typeof venta.planDayIndex === 'number'
+            ? venta.planDayIndex
+            : todayPlanIndex()
+        if (idx >= 0 && idx < plan.length) {
+          plan = [...plan]
+          const row = { ...plan[idx] }
+          if (venta.tam === 'grande') row.vg = Math.max(0, (row.vg || 0) - venta.qty)
+          else if (venta.tam === 'pequeno') row.vp = Math.max(0, (row.vp || 0) - venta.qty)
+          plan[idx] = row
+        }
+      }
+      return { ventas, sabores, plan }
     }),
   limpiarVentas: () =>
     set((s) => {
+      let plan = [...s.plan]
+      for (const v of s.ventas) {
+        const idx =
+          typeof v.planDayIndex === 'number' ? v.planDayIndex : todayPlanIndex()
+        if (idx >= 0 && idx < plan.length) {
+          const row = { ...plan[idx] }
+          if (v.tam === 'grande') row.vg = Math.max(0, (row.vg || 0) - v.qty)
+          else if (v.tam === 'pequeno') row.vp = Math.max(0, (row.vp || 0) - v.qty)
+          plan[idx] = row
+        }
+      }
       let sabores = s.sabores
       for (const v of s.ventas) {
         sabores = restaurarStockPorVenta(sabores, v)
       }
-      return { ventas: [], sabores }
+      return { ventas: [], sabores, plan }
     }),
 
   plan: defaultPlan(),
