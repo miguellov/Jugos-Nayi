@@ -107,7 +107,12 @@ registerLifecycleFlush()
  */
 export async function initJugosCloud() {
   if (!isSupabaseConfigured()) {
-    return { ok: true, mode: 'local' }
+    return {
+      ok: false,
+      mode: 'local',
+      error:
+        'Supabase no está configurado (faltan VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Sin nube, los cambios se pierden al recargar.',
+    }
   }
 
   const { session, authError } = await ensureSession()
