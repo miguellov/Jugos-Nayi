@@ -1,5 +1,5 @@
 import { useState, useLayoutEffect, useEffect, useCallback, useRef, useMemo } from 'react'
-import { ShoppingBag, Calendar, ShoppingCart, TrendingUp, Settings, Moon, Sun, Type, LogOut } from 'lucide-react'
+import { ShoppingBag, Calendar, ShoppingCart, TrendingUp, Settings, Moon, Sun, Type, LogOut, X } from 'lucide-react'
 import JuiceBackdrop from './components/JuiceBackdrop'
 import PuntoDeVenta from './components/PuntoDeVenta'
 import PlanDiario from './components/PlanDiario'
@@ -34,6 +34,18 @@ const tabConfig = { id: 'config', label: 'Ajustes', Icon: Settings }
 
 const FONT_PX = { s: '15px', m: '16px', l: '18px' }
 const FONT_LABEL = { s: 'pequeño', m: 'mediano', l: 'grande' }
+
+function esAppPwaInstalada() {
+  if (typeof window === 'undefined') return false
+  try {
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true
+    )
+  } catch {
+    return false
+  }
+}
 
 function PanelMetaDia({ abierto }) {
   const {
@@ -213,6 +225,14 @@ export default function App() {
   const [bootstrapped, setBootstrapped] = useState(false)
   const [syncMsg, setSyncMsg] = useState(null)
   const [panelAbierto, setPanelAbierto] = useState(false)
+  const [pwaInstalada, setPwaInstalada] = useState(() => esAppPwaInstalada())
+  const [bannerPwaCerrado, setBannerPwaCerrado] = useState(() => {
+    try {
+      return localStorage.getItem('banner_cerrado') === 'true'
+    } catch {
+      return false
+    }
+  })
   const refPanelWrap = useRef(null)
   const refBotonMeta = useRef(null)
   const cargarVentas = useStore((s) => s.cargarVentas)
@@ -295,6 +315,25 @@ export default function App() {
     }
   }, [puedeVerMeta, panelAbierto])
 
+  useEffect(() => {
+    const mq = window.matchMedia('(display-mode: standalone)')
+    const actualizar = () => setPwaInstalada(esAppPwaInstalada())
+    actualizar()
+    mq.addEventListener('change', actualizar)
+    return () => mq.removeEventListener('change', actualizar)
+  }, [])
+
+  const mostrarBannerPwa = !pwaInstalada && !bannerPwaCerrado
+
+  const cerrarBannerPwa = () => {
+    try {
+      localStorage.setItem('banner_cerrado', 'true')
+    } catch {
+      /* ignore */
+    }
+    setBannerPwaCerrado(true)
+  }
+
   const applyTemaRoot = useCallback(() => {
     const rootEl = document.getElementById('root')
     const html = document.documentElement
@@ -373,6 +412,29 @@ export default function App() {
       <JuiceBackdrop />
 
       <div className="relative z-10 flex min-h-screen flex-col">
+        {mostrarBannerPwa ? (
+          <div
+            className="relative z-40 w-full bg-[#1D9E75] px-4 pb-3 pr-12 pt-[max(0.75rem,env(safe-area-inset-top))] text-white shadow-md"
+            role="region"
+            aria-label="Instalar aplicación"
+          >
+            <button
+              type="button"
+              onClick={cerrarBannerPwa}
+              className="absolute right-2 top-[max(0.5rem,env(safe-area-inset-top))] flex h-9 w-9 items-center justify-center rounded-lg text-white/95 transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/50"
+              aria-label="Cerrar aviso de instalación"
+            >
+              <X size={20} strokeWidth={2.5} />
+            </button>
+            <p className="text-sm font-bold leading-snug">📱 Instala la app en tu celular</p>
+            <p className="mt-2 text-xs font-medium leading-relaxed text-white/95 sm:text-sm">
+              iPhone: Safari → ⬆️ → Añadir a inicio
+            </p>
+            <p className="mt-1 text-xs font-medium leading-relaxed text-white/95 sm:text-sm">
+              Android: Chrome → ⋮ → Añadir a pantalla
+            </p>
+          </div>
+        ) : null}
         <div
           ref={refPanelWrap}
           className="sticky top-0 z-30 w-full border-b border-[#E5E7EB] bg-white shadow-sm transition-colors duration-200 dark:border-zinc-800 dark:bg-zinc-950"
