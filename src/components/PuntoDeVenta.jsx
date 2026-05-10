@@ -28,6 +28,170 @@ function claseStockCard(stock) {
   return 'border border-gray-300 bg-white/90 shadow-md backdrop-blur-sm hover:border-[#5DCAA5] dark:border-white/15 dark:bg-white/10 dark:hover:border-[#5DCAA5]/90'
 }
 
+function BotellaSVG({ tipo, seleccionado, onClick, precio, config }) {
+  const esGrande = tipo === 'grande'
+
+  const svgGrande = (
+    <>
+      <defs>
+        <clipPath id="clip-grande">
+          <rect x="18" y="35" width="44" height="115" rx="8" />
+        </clipPath>
+      </defs>
+      <rect x="26" y="1" width="28" height="11" rx="5" fill="#1a1a1a" />
+      <rect x="22" y="10" width="36" height="6" rx="3" fill="#2a2a2a" />
+      <rect x="24" y="16" width="32" height="14" rx="4" fill="rgba(200,230,200,0.5)" />
+      <path d="M18 30 Q18 25 24 25 L56 25 Q62 25 62 30 L62 40 L18 40Z" fill="rgba(200,230,200,0.4)" />
+      <rect
+        x="18"
+        y="35"
+        width="44"
+        height="115"
+        rx="8"
+        fill="rgba(220,240,220,0.35)"
+        stroke="rgba(76,175,80,0.4)"
+        strokeWidth="1"
+      />
+      <rect
+        x="18"
+        y="60"
+        width="44"
+        height="90"
+        rx="8"
+        fill="#2E7D32"
+        opacity="0.85"
+        clipPath="url(#clip-grande)"
+      />
+      <rect x="20" y="62" width="40" height="55" rx="4" fill="white" opacity="0.92" />
+      <circle cx="40" cy="82" r="16" fill="#1D9E75" />
+      <ellipse cx="37" cy="83" rx="7" ry="9" fill="#F9A825" />
+      <line x1="33" y1="74" x2="37" y2="74" stroke="#2E7D32" strokeWidth="2" strokeLinecap="round" />
+      <line x1="35" y1="73" x2="37" y2="71" stroke="#2E7D32" strokeWidth="2" strokeLinecap="round" />
+      <line x1="37" y1="72" x2="40" y2="70" stroke="#2E7D32" strokeWidth="2" strokeLinecap="round" />
+      <ellipse cx="46" cy="87" rx="7" ry="7" fill="#F57F17" />
+      <ellipse cx="46" cy="87" rx="5.5" ry="5.5" fill="#FFA000" />
+      <line x1="46" y1="82" x2="46" y2="92" stroke="#F57F17" strokeWidth="1" />
+      <line x1="41" y1="87" x2="51" y2="87" stroke="#F57F17" strokeWidth="1" />
+      <text x="40" y="105" textAnchor="middle" fontSize="7" fontWeight="700" fill="#1B5E20" fontFamily="sans-serif">
+        JUGOS
+      </text>
+      <text x="40" y="112" textAnchor="middle" fontSize="8" fontWeight="700" fill="#F57F17" fontFamily="sans-serif">
+        NAYI
+      </text>
+      <text x="40" y="118" textAnchor="middle" fontSize="4.5" fill="#555" fontFamily="sans-serif">
+        NATURALMENTE PURO
+      </text>
+      <rect x="22" y="38" width="7" height="90" rx="3.5" fill="rgba(255,255,255,0.2)" />
+      <rect x="18" y="125" width="44" height="1" fill="rgba(255,255,255,0.15)" />
+      <rect x="18" y="138" width="44" height="1" fill="rgba(255,255,255,0.15)" />
+    </>
+  )
+
+  const svgPequeno = (
+    <>
+      <defs>
+        <clipPath id="clip-pequeno">
+          <rect x="20" y="75" width="40" height="78" rx="7" />
+        </clipPath>
+      </defs>
+      <g transform="translate(0,30)">
+        <rect x="26" y="1" width="28" height="10" rx="5" fill="#1a1a1a" />
+        <rect x="22" y="9" width="36" height="5" rx="3" fill="#2a2a2a" />
+        <rect x="24" y="14" width="32" height="11" rx="4" fill="rgba(200,230,200,0.5)" />
+        <path d="M20 25 Q20 20 24 20 L56 20 Q60 20 60 25 L60 33 L20 33Z" fill="rgba(200,230,200,0.4)" />
+        <rect
+          x="20"
+          y="28"
+          width="40"
+          height="78"
+          rx="7"
+          fill="rgba(220,240,220,0.35)"
+          stroke="rgba(255,160,0,0.4)"
+          strokeWidth="1"
+        />
+        <rect
+          x="20"
+          y="48"
+          width="40"
+          height="58"
+          rx="7"
+          fill="#F57F17"
+          opacity="0.85"
+          clipPath="url(#clip-pequeno)"
+        />
+        <rect x="22" y="48" width="36" height="45" rx="4" fill="white" opacity="0.92" />
+        <circle cx="40" cy="64" r="13" fill="#1D9E75" />
+        <ellipse cx="37" cy="65" rx="5.5" ry="7" fill="#F9A825" />
+        <line x1="34" y1="58" x2="37" y2="58" stroke="#2E7D32" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="36" y1="57" x2="39" y2="55" stroke="#2E7D32" strokeWidth="1.5" strokeLinecap="round" />
+        <ellipse cx="45" cy="67" rx="5.5" ry="5.5" fill="#F57F17" />
+        <ellipse cx="45" cy="67" rx="4" ry="4" fill="#FFA000" />
+        <line x1="45" y1="63" x2="45" y2="71" stroke="#F57F17" strokeWidth="0.8" />
+        <line x1="41" y1="67" x2="49" y2="67" stroke="#F57F17" strokeWidth="0.8" />
+        <text x="40" y="83" textAnchor="middle" fontSize="6" fontWeight="700" fill="#1B5E20" fontFamily="sans-serif">
+          JUGOS
+        </text>
+        <text x="40" y="89" textAnchor="middle" fontSize="7" fontWeight="700" fill="#F57F17" fontFamily="sans-serif">
+          NAYI
+        </text>
+        <text x="40" y="94" textAnchor="middle" fontSize="4" fill="#555" fontFamily="sans-serif">
+          NAT. PURO
+        </text>
+        <rect x="23" y="30" width="6" height="65" rx="3" fill="rgba(255,255,255,0.2)" />
+      </g>
+    </>
+  )
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-w-0 max-w-[150px] flex-1 flex-col items-center rounded-2xl border-2 px-3 pb-3 pt-2 text-center transition-all ${
+        seleccionado
+          ? 'border-[#1D9E75] bg-green-50 dark:border-[#1D9E75] dark:bg-emerald-950/45'
+          : 'border-gray-200 bg-white hover:border-[#1D9E75] dark:border-white/15 dark:bg-zinc-900/60 dark:hover:border-[#1D9E75]'
+      }`}
+    >
+      {seleccionado ? (
+        <div className="mb-1 flex h-5 w-5 shrink-0 items-center justify-center self-center rounded-full bg-[#1D9E75]">
+          <span className="text-xs leading-none text-white">✓</span>
+        </div>
+      ) : (
+        <div className="mb-1 h-5 shrink-0" aria-hidden />
+      )}
+
+      <span className="block w-full text-sm font-semibold text-gray-800 dark:text-gray-100">
+        {esGrande ? 'Grande' : 'Pequeño'}
+      </span>
+      <span className="mb-3 block w-full text-xs text-[#1D9E75] dark:text-brand-soft">
+        {formatConMoneda(config, precio)}
+      </span>
+
+      {esGrande ? (
+        <svg
+          width="60"
+          height="140"
+          viewBox="0 0 80 160"
+          className="mt-auto shrink-0"
+          style={{ display: 'block', margin: '0 auto' }}
+        >
+          {svgGrande}
+        </svg>
+      ) : (
+        <svg
+          width="60"
+          height="110"
+          viewBox="0 0 80 160"
+          className="mt-auto shrink-0"
+          style={{ display: 'block', margin: '0 auto' }}
+        >
+          {svgPequeno}
+        </svg>
+      )}
+    </button>
+  )
+}
+
 export default function PuntoDeVenta() {
   const {
     sabores,
@@ -414,47 +578,21 @@ export default function PuntoDeVenta() {
         <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-700 dark:text-gray-400">
           2. Elige el tamaño
         </p>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            ['grande', 'Grande', PG, 28],
-            ['pequeno', 'Pequeño', PP, 20],
-          ].map(([id, label, precioNum, sz]) => {
-            const selTam = tam === id
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTam(id)}
-                className={`relative rounded-xl py-3 text-center transition-all duration-200 ${
-                  selTam
-                    ? 'border-2 border-[#1D9E75] bg-[#E8F6F0]/90 shadow-md dark:border-[#1D9E75] dark:bg-emerald-950/45'
-                    : 'border border-gray-300 bg-white/90 shadow-md backdrop-blur-sm hover:border-[#5DCAA5] dark:border-white/15 dark:bg-white/10 dark:hover:border-[#5DCAA5]/80'
-                }`}
-              >
-                <div className="flex min-h-[22px] flex-col items-center justify-end">
-                  {selTam ? (
-                    <span
-                      className="mb-1 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#1D9E75] text-white shadow-sm"
-                      aria-hidden
-                    >
-                      <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                    </span>
-                  ) : (
-                    <span className="mb-1 block h-[22px] w-[22px] shrink-0" aria-hidden />
-                  )}
-                </div>
-                <span className="mb-1 block" style={{ fontSize: sz }}>
-                  🥤
-                </span>
-                <span className="block text-sm font-bold text-gray-900 dark:text-gray-100">{label}</span>
-                <span
-                  className={`text-xs font-semibold ${selTam ? 'text-[#1D9E75] dark:text-brand-soft' : 'text-gray-700 dark:text-brand-soft'}`}
-                >
-                  {formatConMoneda(config, precioNum)}
-                </span>
-              </button>
-            )
-          })}
+        <div className="flex justify-center items-end" style={{ gap: '12px', marginBottom: '20px' }}>
+          <BotellaSVG
+            tipo="grande"
+            seleccionado={tam === 'grande'}
+            onClick={() => setTam('grande')}
+            precio={PG}
+            config={config}
+          />
+          <BotellaSVG
+            tipo="pequeno"
+            seleccionado={tam === 'pequeno'}
+            onClick={() => setTam('pequeno')}
+            precio={PP}
+            config={config}
+          />
         </div>
       </div>
 

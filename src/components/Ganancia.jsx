@@ -27,6 +27,28 @@ const VERDE_SUAVE = '#5DCAA5'
 const GRIS_VACIO = '#B4B2A9'
 const GRIS_TEXTO = '#B4B2A9'
 
+function TooltipIngresosGastos({ active, payload, label, config }) {
+  if (!active || !payload?.length) return null
+  const row = payload[0]
+  const titulo = row?.payload?.nombre ?? label ?? ''
+  const valor = row?.value
+  return (
+    <div
+      style={{
+        background: '#1a2e1a',
+        border: '1px solid #1D9E75',
+        borderRadius: '8px',
+        padding: '8px 12px',
+        color: '#ffffff',
+        fontSize: '13px',
+      }}
+    >
+      <p style={{ color: '#9ca3af', marginBottom: 4 }}>{titulo}</p>
+      <p style={{ color: '#ffffff', fontWeight: 500 }}>{formatConMoneda(config, valor)}</p>
+    </div>
+  )
+}
+
 /** Mismo formato que PlanDiario.jsx: "Lun 4 may — Dom 10 may" */
 function formatRangoSemana(lunesKey) {
   const start = parseDateLocal(lunesKey)
@@ -447,14 +469,7 @@ export default function Ganancias() {
                 <YAxis hide />
                 <Tooltip
                   cursor={{ fill: 'rgba(29,158,117,0.08)' }}
-                  contentStyle={{
-                    background: 'rgba(24,24,27,0.95)',
-                    border: '1px solid rgba(29,158,117,0.35)',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                  }}
-                  labelStyle={{ color: '#a1a1aa' }}
-                  formatter={(value) => [formatConMoneda(config, value), '']}
+                  content={(props) => <TooltipIngresosGastos {...props} config={config} />}
                 />
                 <Bar dataKey="monto" radius={[8, 8, 0, 0]} maxBarSize={56}>
                   {chartDataHoy.map((entry, i) => (
@@ -493,14 +508,7 @@ export default function Ganancias() {
               <YAxis hide />
               <Tooltip
                 cursor={{ fill: 'rgba(29,158,117,0.08)' }}
-                contentStyle={{
-                  background: 'rgba(24,24,27,0.95)',
-                  border: '1px solid rgba(29,158,117,0.35)',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                }}
-                labelStyle={{ color: '#a1a1aa' }}
-                formatter={(value) => [formatConMoneda(config, value), '']}
+                content={(props) => <TooltipIngresosGastos {...props} config={config} />}
               />
               <Bar dataKey="monto" radius={[8, 8, 0, 0]} maxBarSize={56}>
                 {chartDataSemana.map((entry, i) => (
