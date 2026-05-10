@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Pencil, UserPlus, X } from 'lucide-react'
 import { useStore, formatConMoneda } from '../store/useStore'
 import { supabase } from '../supabase'
-import { subirFoto, validarArchivoImagen } from '../utils/uploadPhoto'
+import { subirFoto, validarArchivoImagen, STORAGE_BUCKET_CLIENTES } from '../utils/uploadPhoto'
 
 const inputClass =
   'w-full rounded-xl border border-white/60 bg-white/90 px-3 py-2.5 text-sm text-gray-900 shadow-sm backdrop-blur-sm ' +
@@ -191,7 +191,7 @@ export default function Mayoristas() {
         return objectUrl
       })
       setSubiendoFotoCliente(true)
-      const url = await subirFoto(file, 'clientes', slug)
+      const url = await subirFoto(file, STORAGE_BUCKET_CLIENTES, slug)
       if (!url) {
         setErrorFotoCliente('No se pudo subir la imagen')
         setPreviewFotoCliente((prev) => {

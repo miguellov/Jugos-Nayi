@@ -97,20 +97,6 @@ function totalQtyVentas(ventas) {
   return (ventas || []).reduce((acc, v) => acc + (Number(v.qty) || 0), 0)
 }
 
-function montoLineaCompra(c) {
-  return (Number(c.cantidad) || 0) * (Number(c.precio) || 0)
-}
-
-function sumaGastosComprasHoyLocal(compras) {
-  const ymd = formatDateLocal(new Date())
-  return (compras || []).reduce((a, c) => {
-    if (!c.created_at) return a
-    const d = formatDateLocal(new Date(c.created_at))
-    if (d !== ymd) return a
-    return a + montoLineaCompra(c)
-  }, 0)
-}
-
 function normalizePlanRow(r) {
   return {
     ...r,
@@ -389,6 +375,8 @@ export const useStore = create((set, get) => ({
   semanasCerradas: [],
   plan: [],
   ventas: [],
+  /** Ventas desde el lunes de la semana calendario actual hasta hoy (hora local). Para Ganancías / semana. */
+  ventasSemana: [],
   /** Unidades (suma de qty) vendidas hoy — mismo conjunto que `ventas` (día local en BD). */
   totalJugosHoy: 0,
   /** Meta del día: SUM(stock) en `inventario_sabores` con `pausado === false` (jugos disponibles). */
@@ -398,7 +386,7 @@ export const useStore = create((set, get) => ({
   /** `sabor` → pausado (no vender). */
   pausadoPorSabor: {},
   compras: [],
-  /** Panel meta / punto de equilibrio (compras acumuladas en fórmula; `gastosHoy` solo hoy). */
+  /** Panel meta / punto de equilibrio: suma de todas las líneas de compras (igual que pantalla Compras). */
   totalGastos: 0,
   gastosHoy: 0,
   precioPromedio: 0,
@@ -853,13 +841,17 @@ export const useStore = create((set, get) => ({
 
   /**
    * Punto de equilibrio y ganancias estimadas (plan del día, compras, ventas de hoy).
-   * `totalGastos` = suma de todas las líneas de compras (fórmula pedida); `gastosHoy` = solo `created_at` hoy (local).
+   * Gastos: suma de TODAS las compras en estado (misma fórmula que Compras.jsx), sin filtrar por fecha.
    */
   calcularPuntoEquilibrio() {
     const { compras, plan, PG, PP, ventas, totalJugosHoy } = get()
+    const lista = compras || []
 
-    const totalGastos = (compras || []).reduce((a, c) => a + montoLineaCompra(c), 0)
-    const gastosHoy = sumaGastosComprasHoyLocal(compras)
+    const totalGastos = lista.reduce(
+      (a, c) => a + (Number(c.cantidad) || 0) * (Number(c.precio) || 0),
+      0
+    )
+    const gastosHoy = totalGastos
 
     const diaHoy = diaSemanaHoy()
     const planHoy = (plan || []).find((r) => r.dia === diaHoy) || { pg: 40, pp: 25 }
@@ -936,6 +928,42 @@ export const useStore = create((set, get) => ({
     set({ ventas: rows, totalJugosHoy: totalQtyVentas(rows) })
     await get().calcularMeta()
     get().calcularPuntoEquilibrio()
+  },
+
+  /**
+   * Ventas del lunes (local) de esta semana hasta fin del día de hoy.
+   * No sustituye `ventas` (que sigue siendo solo el día en curso para el POS).
+   */
+  async cargarVentasSemanaCalendario() {
+    const lunes = mondayOfDate()
+    const rangeStart = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate(), 0, 0, 0, 0)
+    const ahora = new Date()
+    const rangeEnd = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1, 0, 0, 0, 0)
+
+    if (!supabase) {
+      const desde = rangeStart.getTime()
+      const hasta = rangeEnd.getTime()
+      const filtradas = (get().ventas || []).filter((v) => {
+        if (!v.created_at) return false
+        const t = new Date(v.created_at).getTime()
+        return Number.isFinite(t) && t >= desde && t < hasta
+      })
+      set({ ventasSemana: filtradas.map(normalizeVenta) })
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('ventas')
+      .select('*')
+      .gte('created_at', rangeStart.toISOString())
+      .lt('created_at', rangeEnd.toISOString())
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('cargarVentasSemanaCalendario', error)
+      return
+    }
+    set({ ventasSemana: (data || []).map(normalizeVenta) })
   },
 
   /** Ventas de un día local concreto (`YYYY-MM-DD`), sin mutar `ventas` (hoy). */

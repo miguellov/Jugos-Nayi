@@ -15,6 +15,7 @@ import {
   formatDateLocal,
   parseDateLocal,
   dateRangeForYmd,
+  mondayOfDate,
 } from '../store/useStore'
 import { useMayoristasActivo } from '../store/useMayoristasActivo'
 
@@ -24,6 +25,16 @@ const VERDE_HOY = '#1D9E75'
 const VERDE_SUAVE = '#5DCAA5'
 const GRIS_VACIO = '#B4B2A9'
 const GRIS_TEXTO = '#B4B2A9'
+
+function totalLineaVenta(v) {
+  const t = Number(v.total)
+  if (t) return t
+  return (Number(v.qty) || 0) * (Number(v.precio) || 0)
+}
+
+function montoLineaCompra(c) {
+  return (Number(c.cantidad) || 0) * (Number(c.precio) || 0)
+}
 
 function etiquetaDiaCorto(fechaYmd) {
   const d = parseDateLocal(fechaYmd)
@@ -39,49 +50,122 @@ function etiquetaDiaCorto(fechaYmd) {
 export default function Ganancias() {
   const compras = useStore((s) => s.compras)
   const ventas = useStore((s) => s.ventas)
+  const ventasSemana = useStore((s) => s.ventasSemana)
   const PG = useStore((s) => s.PG)
   const PP = useStore((s) => s.PP)
   const config = useStore((s) => s.config)
   const historial7Dias = useStore((s) => s.historial7Dias)
   const desgloseXTamano = useStore((s) => s.desgloseXTamano)
   const ordenesMayoristas = useStore((s) => s.ordenesMayoristas)
+  const cargarVentas = useStore((s) => s.cargarVentas)
+  const cargarVentasSemanaCalendario = useStore((s) => s.cargarVentasSemanaCalendario)
+  const cargarCompras = useStore((s) => s.cargarCompras)
+  const cargarHistorial7Dias = useStore((s) => s.cargarHistorial7Dias)
+  const cargarDesgloseXTamano = useStore((s) => s.cargarDesgloseXTamano)
   const cargarOrdenesMayoristas = useStore((s) => s.cargarOrdenesMayoristas)
   const mayoristasOn = useMayoristasActivo()
 
   useEffect(() => {
-    const { cargarHistorial7Dias, cargarDesgloseXTamano } = useStore.getState()
+    void cargarVentas()
+    void cargarCompras()
     void cargarHistorial7Dias()
     void cargarDesgloseXTamano()
-  }, [])
+    void cargarVentasSemanaCalendario()
+  }, [
+    cargarVentas,
+    cargarCompras,
+    cargarHistorial7Dias,
+    cargarDesgloseXTamano,
+    cargarVentasSemanaCalendario,
+  ])
 
   useEffect(() => {
     if (mayoristasOn) void cargarOrdenesMayoristas()
   }, [mayoristasOn, cargarOrdenesMayoristas])
 
-  const ingresosRetail = useMemo(
-    () => ventas.reduce((a, v) => a + (Number(v.total) || 0), 0),
+  const hoyStr = formatDateLocal(new Date())
+  const fechaLunes = formatDateLocal(mondayOfDate())
+
+  const ingresosRetailHoy = useMemo(
+    () => ventas.reduce((a, v) => a + totalLineaVenta(v), 0),
     [ventas]
   )
 
-  const { ingresoMayoristasHoy, numOrdenesMayoristasHoy } = useMemo(() => {
-    if (!mayoristasOn) return { ingresoMayoristasHoy: 0, numOrdenesMayoristasHoy: 0 }
-    const hoyStr = formatDateLocal(new Date())
+  const ingresosRetailSemana = useMemo(
+    () =>
+      ventasSemana
+        .filter((v) => v.created_at != null && String(v.created_at) >= fechaLunes)
+        .reduce((a, v) => a + totalLineaVenta(v), 0),
+    [ventasSemana, fechaLunes]
+  )
+
+  const { ingresoMayoristasHoy, ingresoMayoristasSemana, numOrdenesMayoristasHoy } = useMemo(() => {
+    if (!mayoristasOn) {
+      return { ingresoMayoristasHoy: 0, ingresoMayoristasSemana: 0, numOrdenesMayoristasHoy: 0 }
+    }
     const { start, end } = dateRangeForYmd(hoyStr)
-    const startMs = new Date(start).getTime()
-    const endMs = new Date(end).getTime()
-    let sum = 0
-    let n = 0
+    const startMsHoy = new Date(start).getTime()
+    const endMsHoy = new Date(end).getTime()
+
+    const l = mondayOfDate()
+    const startSem = new Date(l.getFullYear(), l.getMonth(), l.getDate(), 0, 0, 0, 0).getTime()
+    const now = new Date()
+    const endSem = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0).getTime()
+
+    let sumHoy = 0
+    let sumSem = 0
+    let nHoy = 0
     for (const o of ordenesMayoristas) {
       if (o.estado !== 'entregado') continue
       const t = o.created_at ? new Date(o.created_at).getTime() : NaN
-      if (!Number.isFinite(t) || t < startMs || t >= endMs) continue
-      sum += Number(o.total) || 0
-      n += 1
+      if (!Number.isFinite(t)) continue
+      const tot = Number(o.total) || 0
+      if (t >= startMsHoy && t < endMsHoy) {
+        sumHoy += tot
+        nHoy += 1
+      }
+      if (t >= startSem && t < endSem) sumSem += tot
     }
-    return { ingresoMayoristasHoy: sum, numOrdenesMayoristasHoy: n }
-  }, [mayoristasOn, ordenesMayoristas])
+    return {
+      ingresoMayoristasHoy: sumHoy,
+      ingresoMayoristasSemana: sumSem,
+      numOrdenesMayoristasHoy: nHoy,
+    }
+  }, [mayoristasOn, ordenesMayoristas, hoyStr])
 
-  const ingresos = ingresosRetail + ingresoMayoristasHoy
+  const ingresosHoy = ingresosRetailHoy + ingresoMayoristasHoy
+  const ingresosSemana = ingresosRetailSemana + ingresoMayoristasSemana
+
+  const gastosHoy = useMemo(
+    () =>
+      compras
+        .filter((c) => {
+          if (!c.created_at) return false
+          return formatDateLocal(new Date(c.created_at)) === hoyStr
+        })
+        .reduce((a, c) => a + montoLineaCompra(c), 0),
+    [compras, hoyStr]
+  )
+
+  const gastosSemana = useMemo(
+    () =>
+      compras
+        .filter((c) => {
+          if (!c.created_at) return false
+          const ymd = formatDateLocal(new Date(c.created_at))
+          return ymd >= fechaLunes
+        })
+        .reduce((a, c) => a + montoLineaCompra(c), 0),
+    [compras, fechaLunes]
+  )
+
+  const gastosTotales = useMemo(
+    () => compras.reduce((a, c) => a + montoLineaCompra(c), 0),
+    [compras]
+  )
+
+  const gananciaHoy = ingresosHoy - gastosHoy
+  const gananciaSemana = ingresosSemana - gastosSemana
 
   const porSabor = useMemo(() => {
     const m = new Map()
@@ -92,23 +176,27 @@ export default function Ganancias() {
       }
       const row = m.get(key)
       row.qty += Number(v.qty) || 0
-      row.total += Number(v.total) || 0
+      row.total += totalLineaVenta(v)
     }
     return [...m.values()].sort((a, b) => b.total - a.total)
   }, [ventas])
 
-  const gastos = compras.reduce((a, c) => a + (Number(c.cantidad) || 0) * (Number(c.precio) || 0), 0)
-  const neta = ingresos - gastos
-
-  const chartData = useMemo(
+  const chartDataHoy = useMemo(
     () => [
-      { nombre: 'Ingresos', monto: ingresos, fill: BRAND },
-      { nombre: 'Gastos', monto: gastos, fill: GASTOS },
+      { nombre: 'Ingresos', monto: ingresosHoy, fill: BRAND },
+      { nombre: 'Gastos', monto: gastosHoy, fill: GASTOS },
     ],
-    [ingresos, gastos]
+    [ingresosHoy, gastosHoy]
   )
 
-  const hoyStr = formatDateLocal(new Date())
+  const chartDataSemana = useMemo(
+    () => [
+      { nombre: 'Ingresos', monto: ingresosSemana, fill: BRAND },
+      { nombre: 'Gastos', monto: gastosSemana, fill: GASTOS },
+    ],
+    [ingresosSemana, gastosSemana]
+  )
+
   const maxDelPeriodo = useMemo(
     () => historial7Dias.reduce((m, r) => Math.max(m, Number(r.monto) || 0), 0),
     [historial7Dias]
@@ -124,42 +212,91 @@ export default function Ganancias() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-2">
-        <div className="juice-kpi">
-          <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Ingresos</p>
-          <p className="text-lg font-semibold text-brand dark:text-brand-soft">
-            {formatConMoneda(config, ingresos)}
-          </p>
-          {mayoristasOn && ingresoMayoristasHoy > 0 ? (
-            <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
-              Punto venta {formatConMoneda(config, ingresosRetail)} + mayor.{' '}
-              {formatConMoneda(config, ingresoMayoristasHoy)}
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Hoy
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="juice-kpi">
+            <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Ingresos hoy</p>
+            <p className="text-lg font-semibold text-brand dark:text-brand-soft">
+              {formatConMoneda(config, ingresosHoy)}
             </p>
-          ) : null}
+            {mayoristasOn && ingresoMayoristasHoy > 0 ? (
+              <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                Ventas {formatConMoneda(config, ingresosRetailHoy)} + mayor.{' '}
+                {formatConMoneda(config, ingresoMayoristasHoy)}
+              </p>
+            ) : (
+              <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                Tabla ventas: {formatConMoneda(config, ingresosRetailHoy)}
+              </p>
+            )}
+          </div>
+          <div className="juice-kpi border-rose-200/35 from-white/95 via-rose-50/45 to-amber-50/30 dark:border-rose-500/20 dark:from-gray-900/80 dark:via-rose-950/40 dark:to-amber-950/25">
+            <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Gastos hoy</p>
+            <p className="text-lg font-semibold text-red-500 dark:text-red-400">
+              {formatConMoneda(config, gastosHoy)}
+            </p>
+            <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">Compras registradas hoy</p>
+          </div>
+          <div className="juice-kpi">
+            <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Ganancia neta hoy</p>
+            <p
+              className={`text-lg font-semibold ${gananciaHoy >= 0 ? 'text-brand dark:text-brand-soft' : 'text-red-500 dark:text-red-400'}`}
+            >
+              {formatConMoneda(config, gananciaHoy)}
+            </p>
+          </div>
         </div>
-        <div className="juice-kpi border-rose-200/35 from-white/95 via-rose-50/45 to-amber-50/30 dark:border-rose-500/20 dark:from-gray-900/80 dark:via-rose-950/40 dark:to-amber-950/25">
-          <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Gastos</p>
-          <p className="text-lg font-semibold text-red-500 dark:text-red-400">
-            {formatConMoneda(config, gastos)}
-          </p>
-        </div>
-        <div className="juice-kpi">
-          <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Ganancia</p>
-          <p
-            className={`text-lg font-semibold ${neta >= 0 ? 'text-brand dark:text-brand-soft' : 'text-red-500 dark:text-red-400'}`}
-          >
-            {formatConMoneda(config, neta)}
-          </p>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Semana (lun {fechaLunes} → hoy)
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="juice-kpi">
+            <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Ingresos semana</p>
+            <p className="text-lg font-semibold text-brand dark:text-brand-soft">
+              {formatConMoneda(config, ingresosSemana)}
+            </p>
+            {mayoristasOn && ingresoMayoristasSemana > 0 ? (
+              <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                Ventas {formatConMoneda(config, ingresosRetailSemana)} + mayor.{' '}
+                {formatConMoneda(config, ingresoMayoristasSemana)}
+              </p>
+            ) : (
+              <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                Suma ventas desde el lunes
+              </p>
+            )}
+          </div>
+          <div className="juice-kpi border-rose-200/35 from-white/95 via-rose-50/45 to-amber-50/30 dark:border-rose-500/20 dark:from-gray-900/80 dark:via-rose-950/40 dark:to-amber-950/25">
+            <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Gastos semana</p>
+            <p className="text-lg font-semibold text-red-500 dark:text-red-400">
+              {formatConMoneda(config, gastosSemana)}
+            </p>
+            <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">Compras desde el lunes</p>
+          </div>
+          <div className="juice-kpi">
+            <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Ganancia neta semana</p>
+            <p
+              className={`text-lg font-semibold ${gananciaSemana >= 0 ? 'text-brand dark:text-brand-soft' : 'text-red-500 dark:text-red-400'}`}
+            >
+              {formatConMoneda(config, gananciaSemana)}
+            </p>
+          </div>
         </div>
       </div>
 
       <div className="juice-card border-[#1D9E75]/20 p-4 dark:border-brand/25">
         <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-[#1D9E75] dark:text-brand-soft">
-          Ingresos vs gastos (hoy)
+          Ingresos vs gastos — hoy
         </p>
         <div className="mx-auto w-full max-w-[300px] text-gray-600 dark:text-gray-400">
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 4 }}>
+            <BarChart data={chartDataHoy} margin={{ top: 8, right: 4, left: 4, bottom: 4 }}>
               <XAxis
                 dataKey="nombre"
                 tick={{ fontSize: 11, fill: 'currentColor' }}
@@ -179,7 +316,7 @@ export default function Ganancias() {
                 formatter={(value) => [formatConMoneda(config, value), '']}
               />
               <Bar dataKey="monto" radius={[8, 8, 0, 0]} maxBarSize={56}>
-                {chartData.map((entry, i) => (
+                {chartDataHoy.map((entry, i) => (
                   <Cell key={i} fill={entry.fill} />
                 ))}
               </Bar>
@@ -188,12 +325,57 @@ export default function Ganancias() {
         </div>
         <div className="mt-3 text-center">
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            Ganancia neta
+            Ganancia neta hoy
           </p>
           <p
-            className={`text-2xl font-bold tabular-nums ${neta >= 0 ? 'text-[#1D9E75] dark:text-brand-soft' : 'text-red-500 dark:text-red-400'}`}
+            className={`text-2xl font-bold tabular-nums ${gananciaHoy >= 0 ? 'text-[#1D9E75] dark:text-brand-soft' : 'text-red-500 dark:text-red-400'}`}
           >
-            {formatConMoneda(config, neta)}
+            {formatConMoneda(config, gananciaHoy)}
+          </p>
+        </div>
+      </div>
+
+      <div className="juice-card border-[#1D9E75]/20 p-4 dark:border-brand/25">
+        <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-[#1D9E75] dark:text-brand-soft">
+          Ingresos vs gastos — semana
+        </p>
+        <div className="mx-auto w-full max-w-[300px] text-gray-600 dark:text-gray-400">
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartDataSemana} margin={{ top: 8, right: 4, left: 4, bottom: 4 }}>
+              <XAxis
+                dataKey="nombre"
+                tick={{ fontSize: 11, fill: 'currentColor' }}
+                axisLine={{ stroke: 'rgba(148,163,184,0.35)' }}
+                tickLine={false}
+              />
+              <YAxis hide />
+              <Tooltip
+                cursor={{ fill: 'rgba(29,158,117,0.08)' }}
+                contentStyle={{
+                  background: 'rgba(24,24,27,0.95)',
+                  border: '1px solid rgba(29,158,117,0.35)',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                }}
+                labelStyle={{ color: '#a1a1aa' }}
+                formatter={(value) => [formatConMoneda(config, value), '']}
+              />
+              <Bar dataKey="monto" radius={[8, 8, 0, 0]} maxBarSize={56}>
+                {chartDataSemana.map((entry, i) => (
+                  <Cell key={i} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-3 text-center">
+          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            Ganancia neta semana
+          </p>
+          <p
+            className={`text-2xl font-bold tabular-nums ${gananciaSemana >= 0 ? 'text-[#1D9E75] dark:text-brand-soft' : 'text-red-500 dark:text-red-400'}`}
+          >
+            {formatConMoneda(config, gananciaSemana)}
           </p>
         </div>
       </div>
@@ -216,7 +398,7 @@ export default function Ganancias() {
             </span>
           </p>
           <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-            Este monto ya está incluido en <strong>Ingresos</strong> y en la ganancia neta de arriba.
+            Este monto ya está incluido en <strong>Ingresos hoy</strong> y en la ganancia neta del período.
           </p>
         </div>
       ) : null}
@@ -260,8 +442,8 @@ export default function Ganancias() {
           ...(mayoristasOn
             ? [
                 [
-                  'Ingresos punto de venta (hoy)',
-                  formatConMoneda(config, ingresosRetail),
+                  'Ingresos tabla ventas (hoy)',
+                  formatConMoneda(config, ingresosRetailHoy),
                   'text-gray-700 dark:text-gray-200',
                 ],
                 [
@@ -271,12 +453,36 @@ export default function Ganancias() {
                 ],
                 [
                   'Total ingresos hoy',
-                  formatConMoneda(config, ingresos),
+                  formatConMoneda(config, ingresosHoy),
+                  'text-brand dark:text-brand-soft font-semibold',
+                ],
+                [
+                  'Ingresos tabla ventas (semana)',
+                  formatConMoneda(config, ingresosRetailSemana),
+                  'text-gray-700 dark:text-gray-200',
+                ],
+                [
+                  'Ingresos mayoristas (semana entregado)',
+                  formatConMoneda(config, ingresoMayoristasSemana),
+                  'text-[#1D9E75] dark:text-brand-soft',
+                ],
+                [
+                  'Total ingresos semana',
+                  formatConMoneda(config, ingresosSemana),
                   'text-brand dark:text-brand-soft font-semibold',
                 ],
               ]
-            : [['Ingresos (ventas hoy)', formatConMoneda(config, ingresos), 'text-brand dark:text-brand-soft']]),
-          ['Total gastos compras', formatConMoneda(config, gastos), 'text-red-500 dark:text-red-400'],
+            : [
+                ['Ingresos ventas (hoy)', formatConMoneda(config, ingresosRetailHoy), 'text-brand dark:text-brand-soft'],
+                [
+                  'Ingresos ventas (semana)',
+                  formatConMoneda(config, ingresosRetailSemana),
+                  'text-brand dark:text-brand-soft',
+                ],
+              ]),
+          ['Gastos compras (hoy)', formatConMoneda(config, gastosHoy), 'text-red-500 dark:text-red-400'],
+          ['Gastos compras (semana)', formatConMoneda(config, gastosSemana), 'text-red-500 dark:text-red-400'],
+          ['Gastos compras (histórico total)', formatConMoneda(config, gastosTotales), 'text-red-400 dark:text-red-300'],
         ].map(([label, val, cls]) => (
           <div key={label} className="flex items-center justify-between text-sm">
             <span className="text-gray-500 dark:text-gray-400">{label}</span>
@@ -284,11 +490,19 @@ export default function Ganancias() {
           </div>
         ))}
         <div className="flex items-center justify-between border-t border-surface-border pt-3 dark:border-white/10">
-          <span className="font-semibold text-gray-800 dark:text-gray-100">Ganancia neta</span>
+          <span className="font-semibold text-gray-800 dark:text-gray-100">Ganancia neta hoy</span>
           <span
-            className={`text-xl font-bold ${neta >= 0 ? 'text-brand dark:text-brand-soft' : 'text-red-500 dark:text-red-400'}`}
+            className={`text-xl font-bold ${gananciaHoy >= 0 ? 'text-brand dark:text-brand-soft' : 'text-red-500 dark:text-red-400'}`}
           >
-            {formatConMoneda(config, neta)}
+            {formatConMoneda(config, gananciaHoy)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between border-t border-surface-border pt-3 dark:border-white/10">
+          <span className="font-semibold text-gray-800 dark:text-gray-100">Ganancia neta semana</span>
+          <span
+            className={`text-xl font-bold ${gananciaSemana >= 0 ? 'text-brand dark:text-brand-soft' : 'text-red-500 dark:text-red-400'}`}
+          >
+            {formatConMoneda(config, gananciaSemana)}
           </span>
         </div>
       </div>

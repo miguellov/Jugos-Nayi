@@ -1,5 +1,9 @@
 import { supabase } from '../supabase'
 
+/** IDs de buckets en Supabase Storage (mismo nombre que en el panel; distinguen mayúsculas). */
+export const STORAGE_BUCKET_PERFILES = 'Perfiles'
+export const STORAGE_BUCKET_CLIENTES = 'Clientes'
+
 /** Tipos MIME aceptados para fotos de perfil / clientes */
 export const MIME_IMAGEN_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp']
 
@@ -98,25 +102,46 @@ export async function comprimirImagen(file, maxWidth = 400) {
  * @returns {Promise<string|null>}
  */
 export async function subirFoto(file, bucket, nombre) {
+  console.log('1. Archivo recibido:', file?.name, file?.size, file?.type)
+
   if (!supabase) {
-    console.error('subirFoto: sin cliente Supabase')
+    console.error('subirFoto: sin cliente Supabase (revisa VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY)')
     return null
   }
 
-  const comprimida = await comprimirImagen(file)
+  let comprimida
+  try {
+    comprimida = await comprimirImagen(file)
+    console.log('2. Comprimida:', comprimida?.name, comprimida?.size, comprimida?.type)
+  } catch (e) {
+    console.error('2. Error al comprimir:', e)
+    return null
+  }
+
   const ext = 'jpg'
   const path = `${slugNombreArchivo(nombre)}-${Date.now()}.${ext}`
+  console.log('3. Subiendo a bucket:', bucket, 'path:', path)
 
-  const { error } = await supabase.storage.from(bucket).upload(path, comprimida, {
+  const { data, error } = await supabase.storage.from(bucket).upload(path, comprimida, {
     upsert: true,
     contentType: 'image/jpeg',
   })
 
+  console.log('4. Resultado upload:', { data, error })
+
   if (error) {
-    console.error('Error subiendo foto:', error)
+    console.error('Error detallado:', error.message, {
+      name: error.name,
+      statusCode: error.statusCode,
+      error: error.error,
+      cause: error.cause,
+    })
     return null
   }
 
   const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path)
-  return urlData?.publicUrl ?? null
+  const publicUrl = urlData?.publicUrl ?? null
+  console.log('5. URL pública:', publicUrl)
+
+  return publicUrl
 }

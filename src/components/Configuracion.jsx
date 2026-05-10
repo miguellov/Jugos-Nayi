@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Download, Lock, CircleDollarSign, Unlock, Loader2 } from 'lucide-react'
-import { subirFoto, validarArchivoImagen } from '../utils/uploadPhoto'
+import { subirFoto, validarArchivoImagen, STORAGE_BUCKET_PERFILES } from '../utils/uploadPhoto'
 import { supabase } from '../supabase'
 import { useStore, formatDateLocal, mondayOfDate, dateRangeForYmd, parseDateLocal } from '../store/useStore'
 import { useMayoristasActivo, setMayoristasActivo } from '../store/useMayoristasActivo'
@@ -253,7 +253,7 @@ export default function Configuracion() {
         return objectUrl
       })
       setSubiendoFotoPerfil(true)
-      const url = await subirFoto(file, 'perfiles', nombreNegocio || 'negocio')
+      const url = await subirFoto(file, STORAGE_BUCKET_PERFILES, nombreNegocio || 'negocio')
       if (!url) {
         setFotoPerfilError('No se pudo subir la imagen')
         setPreviewPerfil((prev) => {

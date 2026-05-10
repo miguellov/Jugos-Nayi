@@ -10,6 +10,7 @@ import Mayoristas from './components/Mayoristas'
 import Login from './components/Login'
 // Permisos ahora ocultan secciones completas (sin modal de PIN).
 import { useUiPreferences } from './store/useUiPreferences'
+import { shallow } from 'zustand/shallow'
 import { useStore, formatConMoneda } from './store/useStore'
 import { useMayoristasActivo, getMayoristasActivo } from './store/useMayoristasActivo'
 
@@ -35,15 +36,28 @@ const FONT_PX = { s: '15px', m: '16px', l: '18px' }
 const FONT_LABEL = { s: 'pequeño', m: 'mediano', l: 'grande' }
 
 function PanelMetaDia({ abierto }) {
-  const config = useStore((s) => s.config)
-  const gastosHoy = useStore((s) => s.gastosHoy)
-  const totalGastos = useStore((s) => s.totalGastos)
-  const precioPromedio = useStore((s) => s.precioPromedio)
-  const puntoEquilibrio = useStore((s) => s.puntoEquilibrio)
-  const metaRecomendada = useStore((s) => s.metaRecomendada)
-  const gananciaActual = useStore((s) => s.gananciaActual)
-  const gananciaProyectada = useStore((s) => s.gananciaProyectada)
-  const totalJugosHoy = useStore((s) => s.totalJugosHoy)
+  const {
+    config,
+    totalGastos,
+    precioPromedio,
+    puntoEquilibrio,
+    metaRecomendada,
+    gananciaActual,
+    gananciaProyectada,
+    totalJugosHoy,
+  } = useStore(
+    (s) => ({
+      config: s.config,
+      totalGastos: s.totalGastos,
+      precioPromedio: s.precioPromedio,
+      puntoEquilibrio: s.puntoEquilibrio,
+      metaRecomendada: s.metaRecomendada,
+      gananciaActual: s.gananciaActual,
+      gananciaProyectada: s.gananciaProyectada,
+      totalJugosHoy: s.totalJugosHoy,
+    }),
+    shallow
+  )
 
   const sinGastosRegistrados = totalGastos <= 0
   const vendidos = Number(totalJugosHoy) || 0
@@ -89,9 +103,9 @@ function PanelMetaDia({ abierto }) {
               Resumen de gastos
             </p>
             <p className="mt-1 text-sm text-gray-800 dark:text-gray-100">
-              Gastos de hoy:{' '}
+              Total gastos:{' '}
               <span className="font-semibold tabular-nums text-gray-900 dark:text-white">
-                {formatConMoneda(config, gastosHoy)}
+                {formatConMoneda(config, totalGastos)}
               </span>
             </p>
             <p className="mt-0.5 text-sm text-gray-800 dark:text-gray-100">
