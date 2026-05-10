@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2, ShoppingCart, X } from 'lucide-react'
-import { useStore, formatConMoneda } from '../store/useStore'
+import {
+  useStore,
+  formatConMoneda,
+  formatDateLocal,
+  parseDateLocal,
+  fechaCompraYmd,
+  mondayOfDate,
+} from '../store/useStore'
 
 /**
  * Recetas orientativas (por unidad de jugo del plan):
@@ -16,6 +23,10 @@ function estimarFrutasDesdePlan(planRows) {
   return { G, P, naranjas, mangos, pina }
 }
 
+const FILTRO_HOY = 'hoy'
+const FILTRO_SEMANA = 'semana'
+const FILTRO_TODO = 'todo'
+
 export default function Compras() {
   const compras = useStore((s) => s.compras)
   const plan = useStore((s) => s.plan)
@@ -28,6 +39,7 @@ export default function Compras() {
 
   const [panelCalc, setPanelCalc] = useState(false)
   const [agregandoSug, setAgregandoSug] = useState(false)
+  const [filtroPeriodo, setFiltroPeriodo] = useState(FILTRO_HOY)
 
   useEffect(() => {
     void cargarPlan()
@@ -44,7 +56,70 @@ export default function Compras() {
     return out
   }, [estimacion])
 
-  const total = compras.reduce((a, c) => a + (c.cantidad || 0) * (c.precio || 0), 0)
+  const fechaHoyStr = formatDateLocal(new Date())
+  const fechaLunesStr = formatDateLocal(mondayOfDate())
+
+  const comprasFiltradas = useMemo(() => {
+    if (filtroPeriodo === FILTRO_TODO) return compras
+    if (filtroPeriodo === FILTRO_HOY) {
+      return compras.filter((c) => fechaCompraYmd(c) === fechaHoyStr)
+    }
+    return compras.filter((c) => fechaCompraYmd(c) >= fechaLunesStr)
+  }, [compras, filtroPeriodo, fechaHoyStr, fechaLunesStr])
+
+  const totalFiltrado = useMemo(
+    () => comprasFiltradas.reduce((a, c) => a + (Number(c.cantidad) || 0) * (Number(c.precio) || 0), 0),
+    [comprasFiltradas]
+  )
+
+  const tituloTotalKpi = useMemo(() => {
+    if (filtroPeriodo === FILTRO_HOY) return 'Total compras de hoy'
+    if (filtroPeriodo === FILTRO_SEMANA) return 'Total compras semana'
+    return 'Total compras (todas)'
+  }, [filtroPeriodo])
+
+  const tituloFooterTotal = useMemo(() => {
+    if (filtroPeriodo === FILTRO_HOY) return 'Total compras de hoy'
+    if (filtroPeriodo === FILTRO_SEMANA) return 'Total compras semana'
+    return 'Total compras'
+  }, [filtroPeriodo])
+
+  const gruposPorFecha = useMemo(() => {
+    const map = new Map()
+    for (const c of comprasFiltradas) {
+      const f = fechaCompraYmd(c)
+      if (!map.has(f)) map.set(f, [])
+      map.get(f).push(c)
+    }
+    const keys = [...map.keys()].sort((a, b) => b.localeCompare(a))
+    return keys.map((fecha) => ({ fecha, items: map.get(fecha) }))
+  }, [comprasFiltradas])
+
+  const variasFechas = gruposPorFecha.length > 1
+
+  const etiquetaRegistro = (fechaYmd) => {
+    if (fechaYmd === fechaHoyStr) return 'Registrada: hoy'
+    const d = parseDateLocal(fechaYmd)
+    if (Number.isNaN(d.getTime())) return `Registrada: ${fechaYmd}`
+    const short = d
+      .toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })
+      .replace(/\./g, '')
+    const S = short.charAt(0).toUpperCase() + short.slice(1)
+    return `Registrada: ${S}`
+  }
+
+  const tituloGrupoFecha = (fechaYmd) => {
+    if (fechaYmd === fechaHoyStr) return 'Hoy'
+    const d = parseDateLocal(fechaYmd)
+    if (Number.isNaN(d.getTime())) return fechaYmd
+    const t = d.toLocaleDateString('es-DO', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+    return t.charAt(0).toUpperCase() + t.slice(1)
+  }
 
   const agregarTodo = async () => {
     if (!lineasSugeridas.length) return
@@ -57,18 +132,25 @@ export default function Compras() {
     }
   }
 
+  const pillBase =
+    'rounded-xl px-3 py-2 text-xs font-semibold transition active:scale-[0.99] sm:text-sm'
+  const pillOff =
+    'border border-gray-200/90 bg-white/70 text-gray-600 hover:border-[#1D9E75]/40 hover:text-[#1D9E75] dark:border-white/15 dark:bg-gray-900/50 dark:text-gray-300 dark:hover:border-brand/50 dark:hover:text-brand-soft'
+  const pillOn =
+    'border border-[#1D9E75]/50 bg-[#1D9E75] text-white shadow-sm dark:border-brand/50 dark:bg-brand'
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="juice-kpi border-rose-200/40 from-white/95 via-rose-50/50 to-amber-50/35 dark:border-rose-500/20 dark:from-gray-900/80 dark:via-rose-950/40 dark:to-amber-950/25">
-          <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Total gastos</p>
+          <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">{tituloTotalKpi}</p>
           <p className="text-2xl font-semibold text-red-500 dark:text-red-400">
-            {formatConMoneda(config, total)}
+            {formatConMoneda(config, totalFiltrado)}
           </p>
         </div>
         <div className="juice-kpi">
-          <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Items</p>
-          <p className="text-2xl font-semibold text-gray-800 dark:text-gray-100">{compras.length}</p>
+          <p className="mb-1 text-xs text-gray-600 dark:text-gray-400">Ítems (período)</p>
+          <p className="text-2xl font-semibold text-gray-800 dark:text-gray-100">{comprasFiltradas.length}</p>
         </div>
       </div>
 
@@ -159,60 +241,118 @@ export default function Compras() {
       )}
 
       <div className="juice-card overflow-hidden">
-        <div className="grid grid-cols-12 gap-2 border-b border-white/50 bg-gradient-to-r from-emerald-50/60 to-stone-50/40 px-4 py-2 text-xs font-medium text-gray-600 backdrop-blur-sm dark:border-white/10 dark:from-emerald-950/45 dark:to-stone-900/35 dark:text-gray-300">
-          <span className="col-span-5">Ingrediente</span>
-          <span className="col-span-2 text-center">Cant.</span>
-          <span className="col-span-3 text-center">Precio</span>
-          <span className="col-span-2 text-center">Total</span>
-        </div>
-        {compras.map((c) => (
-          <div
-            key={c.id}
-            className="grid grid-cols-12 items-center gap-2 border-b border-surface-muted px-3 py-2 last:border-0 dark:border-white/10"
-          >
-            <input
-              value={c.nombre}
-              onChange={(e) => updateCompra(c.id, 'nombre', e.target.value)}
-              placeholder="Nombre"
-              className="col-span-5 rounded border border-white/60 bg-white/70 px-2 py-1 text-xs text-gray-900 backdrop-blur-sm placeholder:text-gray-400 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/20 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100 dark:placeholder:text-gray-500"
-            />
-            <input
-              type="number"
-              min="0"
-              value={c.cantidad}
-              onChange={(e) => updateCompra(c.id, 'cantidad', e.target.value)}
-              className="col-span-2 rounded border border-white/60 bg-white/70 px-1 py-1 text-center text-xs text-gray-900 backdrop-blur-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/20 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100"
-            />
-            <input
-              type="number"
-              min="0"
-              value={c.precio}
-              onChange={(e) => updateCompra(c.id, 'precio', e.target.value)}
-              className="col-span-3 rounded border border-white/60 bg-white/70 px-1 py-1 text-center text-xs text-gray-900 backdrop-blur-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/20 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100"
-            />
-            <div className="col-span-2 flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                {formatConMoneda(config, (c.cantidad || 0) * (c.precio || 0))}
-              </span>
-              <button
-                type="button"
-                onClick={() => eliminarCompra(c.id)}
-                className="text-gray-300 hover:text-red-400 dark:text-gray-600 dark:hover:text-red-400"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
+        <div className="flex w-full flex-col gap-2 border-b border-white/50 bg-white/40 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-gray-900/30 sm:flex-row sm:flex-wrap sm:items-center">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:mr-1">
+            Ver
+          </p>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-1">
+            <button
+              type="button"
+              onClick={() => setFiltroPeriodo(FILTRO_HOY)}
+              className={`${pillBase} flex-1 sm:flex-none ${filtroPeriodo === FILTRO_HOY ? pillOn : pillOff}`}
+            >
+              Hoy
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroPeriodo(FILTRO_SEMANA)}
+              className={`${pillBase} flex-1 sm:flex-none ${filtroPeriodo === FILTRO_SEMANA ? pillOn : pillOff}`}
+            >
+              Esta semana
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroPeriodo(FILTRO_TODO)}
+              className={`${pillBase} flex-1 sm:flex-none ${filtroPeriodo === FILTRO_TODO ? pillOn : pillOff}`}
+            >
+              Todo
+            </button>
           </div>
-        ))}
-        <div className="flex justify-between border-t border-white/50 bg-gradient-to-r from-rose-50/40 to-emerald-50/30 px-4 py-2 text-sm font-semibold backdrop-blur-sm dark:border-white/10 dark:from-rose-950/35 dark:to-emerald-950/30">
-          <span className="text-gray-700 dark:text-gray-200">Total compras</span>
-          <span className="text-red-500 dark:text-red-400">{formatConMoneda(config, total)}</span>
         </div>
+
+        {comprasFiltradas.length === 0 ? (
+          <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
+            <p className="text-sm text-gray-500 dark:text-gray-400">No hay compras registradas para este período</p>
+            <button
+              type="button"
+              onClick={() => void agregarCompra()}
+              className="rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.99] dark:bg-brand"
+            >
+              Agregar compra de hoy
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-12 gap-2 border-b border-white/50 bg-gradient-to-r from-emerald-50/60 to-stone-50/40 px-4 py-2 text-xs font-medium text-gray-600 backdrop-blur-sm dark:border-white/10 dark:from-emerald-950/45 dark:to-stone-900/35 dark:text-gray-300">
+              <span className="col-span-5">Ingrediente</span>
+              <span className="col-span-2 text-center">Cant.</span>
+              <span className="col-span-3 text-center">Precio</span>
+              <span className="col-span-2 text-center">Total</span>
+            </div>
+            {gruposPorFecha.map(({ fecha: fechaGrupo, items }) => (
+              <div key={fechaGrupo}>
+                {variasFechas ? (
+                  <div className="border-b border-emerald-200/50 bg-emerald-50/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#1D9E75] dark:border-white/10 dark:bg-emerald-950/35 dark:text-brand-soft">
+                    {tituloGrupoFecha(fechaGrupo)}
+                  </div>
+                ) : null}
+                {items.map((c) => (
+                  <div
+                    key={c.id}
+                    className="grid grid-cols-12 items-center gap-2 border-b border-surface-muted px-3 py-2 last:border-0 dark:border-white/10"
+                  >
+                    <div className="col-span-5 flex min-w-0 flex-col gap-0.5">
+                      <input
+                        value={c.nombre}
+                        onChange={(e) => updateCompra(c.id, 'nombre', e.target.value)}
+                        placeholder="Nombre"
+                        className="w-full rounded border border-white/60 bg-white/70 px-2 py-1 text-xs text-gray-900 backdrop-blur-sm placeholder:text-gray-400 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/20 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100 dark:placeholder:text-gray-500"
+                      />
+                      <span className="inline-flex w-fit rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
+                        {etiquetaRegistro(fechaCompraYmd(c))}
+                      </span>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      value={c.cantidad}
+                      onChange={(e) => updateCompra(c.id, 'cantidad', e.target.value)}
+                      className="col-span-2 rounded border border-white/60 bg-white/70 px-1 py-1 text-center text-xs text-gray-900 backdrop-blur-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/20 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={c.precio}
+                      onChange={(e) => updateCompra(c.id, 'precio', e.target.value)}
+                      className="col-span-3 rounded border border-white/60 bg-white/70 px-1 py-1 text-center text-xs text-gray-900 backdrop-blur-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/20 dark:border-white/15 dark:bg-gray-900/55 dark:text-gray-100"
+                    />
+                    <div className="col-span-2 flex items-center justify-between gap-1">
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                        {formatConMoneda(config, (c.cantidad || 0) * (c.precio || 0))}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => eliminarCompra(c.id)}
+                        className="shrink-0 text-gray-300 hover:text-red-400 dark:text-gray-600 dark:hover:text-red-400"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+            <div className="flex justify-between border-t border-white/50 bg-gradient-to-r from-rose-50/40 to-emerald-50/30 px-4 py-2 text-sm font-semibold backdrop-blur-sm dark:border-white/10 dark:from-rose-950/35 dark:to-emerald-950/30">
+              <span className="text-gray-700 dark:text-gray-200">{tituloFooterTotal}</span>
+              <span className="text-red-500 dark:text-red-400">{formatConMoneda(config, totalFiltrado)}</span>
+            </div>
+          </>
+        )}
       </div>
 
       <button
         type="button"
-        onClick={agregarCompra}
+        onClick={() => void agregarCompra()}
         className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-surface-border py-3 text-sm font-medium text-gray-500 transition-colors hover:border-brand hover:text-brand dark:border-white/20 dark:text-gray-400 dark:hover:border-brand-soft dark:hover:text-brand-soft"
       >
         <Plus size={16} /> Agregar ingrediente

@@ -36,14 +36,27 @@ function snapshotFromStore(s) {
   }
 }
 
+function normalizeSaboresDesdeNube(list) {
+  return (list || []).map((item) => {
+    if (!item || typeof item !== 'object') return item
+    const sabor =
+      item.sabor != null && String(item.sabor).trim() !== ''
+        ? String(item.sabor).trim()
+        : item.nombre != null
+          ? String(item.nombre).trim()
+          : ''
+    const { nombre: _omit, ...rest } = item
+    return { ...rest, sabor }
+  })
+}
+
 function mergeServerState(raw) {
   if (!raw || typeof raw !== 'object') return null
   const dias = 7
+  const saboresRaw =
+    Array.isArray(raw.sabores) && raw.sabores.length > 0 ? raw.sabores : [...DEFAULT_SABORES]
   return {
-    sabores:
-      Array.isArray(raw.sabores) && raw.sabores.length > 0
-        ? raw.sabores
-        : [...DEFAULT_SABORES],
+    sabores: normalizeSaboresDesdeNube(saboresRaw),
     ventas: Array.isArray(raw.ventas) ? raw.ventas : [],
     plan:
       Array.isArray(raw.plan) && raw.plan.length === dias ? raw.plan : defaultPlan(),

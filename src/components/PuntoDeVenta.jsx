@@ -3,9 +3,14 @@ import { Plus, Minus, Check, Trash2, Pause, Play } from 'lucide-react'
 import { useStore, formatDateLocal, formatConMoneda } from '../store/useStore'
 import GestionSabores from './GestionSabores'
 
+function labelSabor(s) {
+  return String(s.sabor ?? s.nombre ?? '').trim()
+}
+
 function stockParaSabor(s, inventarioPorSabor) {
-  if (inventarioPorSabor[s.nombre] !== undefined && inventarioPorSabor[s.nombre] !== null) {
-    return Number(inventarioPorSabor[s.nombre]) || 0
+  const k = labelSabor(s)
+  if (inventarioPorSabor[k] !== undefined && inventarioPorSabor[k] !== null) {
+    return Number(inventarioPorSabor[k]) || 0
   }
   return Number(s.stock) || 0
 }
@@ -101,8 +106,28 @@ export default function PuntoDeVenta() {
     return m
   }, [ventas])
 
+  const inventarioGanancia = useMemo(() => {
+    const totalDisponible = sabores.reduce((a, s) => {
+      const clave = labelSabor(s)
+      if (pausadoPorSabor[clave] === true) return a
+      return a + (stockParaSabor(s, inventarioPorSabor) || 0)
+    }, 0)
+    const gananciaActualVentas = ventas.reduce((a, v) => a + (Number(v.total) || 0), 0)
+    const vendidosN = Number(totalJugosHoy) || 0
+    const unidadesRestantes = Math.max(0, totalDisponible - vendidosN)
+    const pg = Number(PG) || 0
+    const pp = Number(PP) || 0
+    return {
+      totalDisponible,
+      gananciaActualVentas,
+      potencialRestanteMin: unidadesRestantes * pp,
+      potencialRestanteMax: unidadesRestantes * pg,
+      siVendesTodoMax: totalDisponible * pg,
+    }
+  }, [sabores, inventarioPorSabor, pausadoPorSabor, ventas, totalJugosHoy, PG, PP])
+
   const elegido = sabores.find((x) => x.id === sabor)
-  const elegidoPausado = elegido != null && pausadoPorSabor[elegido.nombre] === true
+  const elegidoPausado = elegido != null && pausadoPorSabor[labelSabor(elegido)] === true
   const stockDisp = elegido != null ? stockParaSabor(elegido, inventarioPorSabor) : 0
 
   useEffect(() => {
@@ -128,7 +153,7 @@ export default function PuntoDeVenta() {
     })
     agregarVenta({
       saborId: elegido.id,
-      sabor: elegido.nombre,
+      sabor: labelSabor(elegido),
       emoji: elegido.emoji,
       tam,
       qty,
@@ -138,7 +163,7 @@ export default function PuntoDeVenta() {
       notas: notas.trim().slice(0, 50),
     })
     calcularPuntoEquilibrio()
-    setToast(`${elegido.emoji} ${qty}x ${elegido.nombre} ${tam} — ${formatConMoneda(config, subtotal)}`)
+    setToast(`${elegido.emoji} ${qty}x ${labelSabor(elegido)} ${tam} — ${formatConMoneda(config, subtotal)}`)
     setTimeout(() => setToast(''), 2500)
     setSabor(null)
     setTam(null)
@@ -157,11 +182,14 @@ export default function PuntoDeVenta() {
   }
 
   const vendidos = Number(totalJugosHoy) || 0
+  const { totalDisponible, gananciaActualVentas, potencialRestanteMin, potencialRestanteMax, siVendesTodoMax } =
+    inventarioGanancia
+  const pctDisponibleRaw = totalDisponible > 0 ? (vendidos / totalDisponible) * 100 : 0
+  const pctDisponibleBar = Math.min(100, pctDisponibleRaw)
+  const pctDisponibleEtiqueta = Math.min(100, Math.round(pctDisponibleRaw))
   const meta = Math.max(0, Number(metaDiaria) || 0)
   const sinInventarioMeta = meta <= 0
   const pctRaw = meta > 0 ? (vendidos / meta) * 100 : 0
-  const pctBar = Math.min(100, pctRaw)
-  const pctEtiqueta = Math.min(100, Math.round(pctRaw))
   const metaLograda = meta > 0 && vendidos >= meta
   /** Tramos de animo / color (solo si hay meta por inventario). */
   const tramoCasi = !sinInventarioMeta && !metaLograda && pctRaw >= 90
@@ -171,12 +199,12 @@ export default function PuntoDeVenta() {
   if (metaLograda || tramoCasi) barraBg = '#EF9F27'
   else if (tramoBien) barraBg = '#22C55E'
 
-  const togglePausaSabor = (e, nombre) => {
+  const togglePausaSabor = (e, claveSabor) => {
     e.preventDefault()
     e.stopPropagation()
-    if (elegido?.nombre === nombre) setSabor(null)
-    const actual = pausadoPorSabor[nombre] === true
-    void setPausadoSabor(nombre, !actual)
+    if (elegido && labelSabor(elegido) === claveSabor) setSabor(null)
+    const actual = pausadoPorSabor[claveSabor] === true
+    void setPausadoSabor(claveSabor, !actual)
   }
 
   return (
@@ -220,21 +248,39 @@ export default function PuntoDeVenta() {
             <p className="mb-2 text-sm font-medium text-gray-800 dark:text-gray-100">
               Vendidos:{' '}
               <span className="tabular-nums font-bold text-[#1D9E75] dark:text-brand-soft">
-                {vendidos} de {meta} disponibles
+                {vendidos} de {totalDisponible} disponibles
               </span>{' '}
-              <span className="text-gray-500 dark:text-gray-400">({pctEtiqueta}%)</span>
+              <span className="text-gray-500 dark:text-gray-400">({pctDisponibleEtiqueta}%)</span>
             </p>
             <div className="h-3 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
               <div
                 className="h-3 rounded-full"
                 style={{
-                  width: `${pctBar}%`,
+                  width: `${pctDisponibleBar}%`,
                   background: metaLograda
                     ? 'linear-gradient(90deg, #CA8A04, #FACC15, #D97706)'
                     : barraBg,
                   transition: 'width 0.5s ease, background-color 0.5s ease',
                 }}
               />
+            </div>
+            <div className="mt-4 space-y-2 border-t border-black/5 pt-4 dark:border-white/10">
+              <p className="text-sm font-semibold text-[#1D9E75] dark:text-brand-soft">
+                💰 Ganado hasta ahora:{' '}
+                <span className="tabular-nums">{formatConMoneda(config, gananciaActualVentas)}</span>
+              </p>
+              <div className="space-y-0.5 text-sm">
+                <p className="font-medium text-gray-800 dark:text-gray-200">📈 Potencial restante:</p>
+                <p className="pl-2 tabular-nums text-gray-500 dark:text-gray-400">
+                  Mínimo: {formatConMoneda(config, potencialRestanteMin)}
+                </p>
+                <p className="pl-2 tabular-nums text-emerald-600 dark:text-emerald-400/90">
+                  Máximo: {formatConMoneda(config, potencialRestanteMax)}
+                </p>
+              </div>
+              <p className="text-sm font-bold tabular-nums text-[#10B981] dark:text-emerald-300">
+                🎯 Si vendes todo: hasta {formatConMoneda(config, siVendesTodoMax)}
+              </p>
             </div>
             {metaLograda ? (
               <p className="mt-4 text-center text-base font-bold leading-snug text-[#166534] dark:text-emerald-200 sm:text-lg">
@@ -288,9 +334,10 @@ export default function PuntoDeVenta() {
           {sabores.map((s) => {
             const stock = stockParaSabor(s, inventarioPorSabor)
             const agotado = stock <= 0
-            const pausado = pausadoPorSabor[s.nombre] === true
+            const clave = labelSabor(s)
+            const pausado = pausadoPorSabor[clave] === true
             const noVenta = agotado || pausado
-            const vendHoy = vendidosHoyPorNombre[s.nombre] ?? 0
+            const vendHoy = vendidosHoyPorNombre[clave] ?? 0
             let badge = null
             if (pausado) {
               badge = <span className="font-semibold text-gray-500 dark:text-gray-400">Pausado</span>
@@ -318,7 +365,7 @@ export default function PuntoDeVenta() {
                 {esAdmin && !agotado ? (
                   <button
                     type="button"
-                    onClick={(e) => togglePausaSabor(e, s.nombre)}
+                    onClick={(e) => togglePausaSabor(e, clave)}
                     className="absolute left-2 top-2 z-30 flex h-8 w-8 min-h-[32px] min-w-[32px] items-center justify-center rounded-full border border-gray-200 bg-white/95 text-[#1D9E75] shadow-md transition hover:bg-emerald-50 dark:border-white/15 dark:bg-zinc-900/95 dark:text-brand-soft dark:hover:bg-emerald-950/60"
                     aria-label={pausado ? 'Reanudar sabor' : 'Pausar sabor'}
                     title={pausado ? 'Reanudar' : 'Pausar'}
@@ -346,7 +393,7 @@ export default function PuntoDeVenta() {
                       seleccionado ? 'text-[#1D9E75] dark:text-brand-soft' : 'text-gray-900 dark:text-gray-100'
                     }`}
                   >
-                    {s.nombre}
+                    {clave}
                   </span>
                   <span className={`mt-1 inline-block text-xs ${noVenta && !pausado ? '' : 'font-semibold'}`}>
                     {badge}

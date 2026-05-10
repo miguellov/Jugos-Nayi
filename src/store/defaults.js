@@ -30,14 +30,14 @@ export function todayPlanIndex() {
 }
 
 export const DEFAULT_SABORES = [
-  { id: 'naranja', nombre: 'Naranja', emoji: '🍊', stock: 50 },
-  { id: 'chinola', nombre: 'Chinola', emoji: '🟡', stock: 40 },
-  { id: 'mango', nombre: 'Mango', emoji: '🥭', stock: 40 },
-  { id: 'pina', nombre: 'Piña', emoji: '🍍', stock: 35 },
-  { id: 'zanahoria', nombre: 'Zanahoria', emoji: '🥕', stock: 30 },
-  { id: 'melon', nombre: 'Melón', emoji: '🍈', stock: 30 },
-  { id: 'lechoza', nombre: 'Lechoza', emoji: '🍑', stock: 25 },
-  { id: 'mix', nombre: 'Mix Tropical', emoji: '🍹', stock: 40 },
+  { id: 'naranja', sabor: 'Naranja', emoji: '🍊', stock: 50 },
+  { id: 'chinola', sabor: 'Chinola', emoji: '🟡', stock: 40 },
+  { id: 'mango', sabor: 'Mango', emoji: '🥭', stock: 40 },
+  { id: 'pina', sabor: 'Piña', emoji: '🍍', stock: 35 },
+  { id: 'zanahoria', sabor: 'Zanahoria', emoji: '🥕', stock: 30 },
+  { id: 'melon', sabor: 'Melón', emoji: '🍈', stock: 30 },
+  { id: 'lechoza', sabor: 'Lechoza', emoji: '🍑', stock: 25 },
+  { id: 'mix', sabor: 'Mix Tropical', emoji: '🍹', stock: 40 },
 ]
 
 export function defaultPlan() {

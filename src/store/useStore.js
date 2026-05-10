@@ -38,6 +38,12 @@ function sortPlanRows(rows) {
   return [...(rows || [])].sort((a, b) => DIAS.indexOf(a.dia) - DIAS.indexOf(b.dia))
 }
 
+/** UUID v4 (filas `inventario_sabores.id`). */
+function isInvUuid(id) {
+  if (id == null) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id))
+}
+
 function todayRange() {
   const start = new Date()
   start.setHours(0, 0, 0, 0)
@@ -109,11 +115,23 @@ function normalizePlanRow(r) {
   }
 }
 
+/** `YYYY-MM-DD` local para una fila de compra (columna `fecha`, o respaldo desde `created_at`). */
+export function fechaCompraYmd(c) {
+  if (c.fecha != null && String(c.fecha).trim() !== '') {
+    return String(c.fecha).slice(0, 10)
+  }
+  if (c.created_at) {
+    return formatDateLocal(new Date(c.created_at))
+  }
+  return formatDateLocal(new Date())
+}
+
 function normalizeCompra(c) {
   return {
     ...c,
     cantidad: Number(c.cantidad) || 0,
     precio: Number(c.precio) || 0,
+    fecha: fechaCompraYmd(c),
   }
 }
 
@@ -226,15 +244,18 @@ function aplicarDescuentoMayoristaOffline(get, set, orden) {
   const pausadoMap = get().pausadoPorSabor || {}
   const inv = { ...get().inventarioPorSabor }
   const entries = Object.entries(inv)
-    .filter(([nombre]) => pausadoMap[nombre] !== true)
-    .map(([nombre, stock]) => ({ nombre, stock: Math.max(0, Number(stock) || 0) }))
+    .filter(([claveSabor]) => pausadoMap[claveSabor] !== true)
+    .map(([claveSabor, stock]) => ({
+      claveSabor,
+      stock: Math.max(0, Number(stock) || 0),
+    }))
     .sort((a, b) => b.stock - a.stock)
 
   let restante = totalJugos
-  for (const { nombre, stock } of entries) {
+  for (const { claveSabor, stock } of entries) {
     if (restante <= 0) break
     const des = Math.min(stock, restante)
-    inv[nombre] = stock - des
+    inv[claveSabor] = stock - des
     restante -= des
   }
 
@@ -252,7 +273,8 @@ function aplicarDescuentoMayoristaOffline(get, set, orden) {
       }
     })
     const sabores = s.sabores.map((x) => {
-      const q = inv[x.nombre]
+      const label = String(x.sabor ?? x.nombre ?? '').trim()
+      const q = label ? inv[label] : undefined
       if (q === undefined) return x
       return { ...x, stock: Math.max(0, Number(q) || 0) }
     })
@@ -386,8 +408,9 @@ export const useStore = create((set, get) => ({
   /** `sabor` → pausado (no vender). */
   pausadoPorSabor: {},
   compras: [],
-  /** Panel meta / punto de equilibrio: suma de todas las líneas de compras (igual que pantalla Compras). */
+  /** Suma histórica de todas las líneas de compras. */
   totalGastos: 0,
+  /** Suma de compras con `fecha` = hoy (local). */
   gastosHoy: 0,
   precioPromedio: 0,
   puntoEquilibrio: 0,
@@ -413,22 +436,246 @@ export const useStore = create((set, get) => ({
   usuarioActivo: null,
   autenticado: false,
 
-  agregarSabor: () =>
+  /** `${saborId}:${field}` → `saving` | `ok` | `error` (para bordes en GestionSabores). */
+  saborFieldStatus: {},
+
+  /**
+   * Inserta un sabor en `inventario_sabores`.
+   * @returns {{ ok: true } | { ok: false, error: string }}
+   */
+  async agregarSaborInventario({ sabor: saborRaw, emoji }) {
+    const sabor = String(saborRaw ?? '').trim()
+    const em = String(emoji ?? '🥤').slice(0, 4) || '🥤'
+    if (!sabor) return { ok: false, error: 'empty' }
+
+    const yaExiste = get().sabores.some(
+      (x) =>
+        String(x.sabor ?? x.nombre)
+          .trim()
+          .toLowerCase() === sabor.toLowerCase()
+    )
+    if (yaExiste) return { ok: false, error: 'duplicate' }
+
+    const tempId = `j-${Date.now()}`
     set((s) => ({
-      sabores: [
-        ...s.sabores,
-        { id: `j-${Date.now()}`, nombre: 'Nuevo', emoji: '🥤', stock: 0 },
-      ],
-    })),
-  updateSabor: (id, field, val) =>
+      sabores: [...s.sabores, { id: tempId, sabor, emoji: em, stock: 0 }],
+      inventarioPorSabor: { ...s.inventarioPorSabor, [sabor]: 0 },
+      pausadoPorSabor: { ...s.pausadoPorSabor, [sabor]: false },
+    }))
+
+    if (!supabase) {
+      await get().calcularMeta()
+      return { ok: true }
+    }
+
+    const { data, error } = await supabase
+      .from('inventario_sabores')
+      .insert({ sabor, stock: 0, emoji: em, pausado: false })
+      .select('id, sabor, stock, emoji')
+      .single()
+
+    if (error) {
+      console.error('agregarSaborInventario', error)
+      set((s) => {
+        const inventarioPorSabor = { ...s.inventarioPorSabor }
+        delete inventarioPorSabor[sabor]
+        const pausadoPorSabor = { ...s.pausadoPorSabor }
+        delete pausadoPorSabor[sabor]
+        return {
+          sabores: s.sabores.filter((x) => x.id !== tempId),
+          inventarioPorSabor,
+          pausadoPorSabor,
+        }
+      })
+      return { ok: false, error: error.message || 'db' }
+    }
+
+    const row = data
     set((s) => ({
       sabores: s.sabores.map((x) =>
-        x.id === id
-          ? { ...x, [field]: field === 'nombre' || field === 'emoji' ? val : Number(val) || 0 }
+        x.id === tempId
+          ? {
+              id: row.id,
+              invId: row.id,
+              sabor: row.sabor,
+              stock: Number(row.stock) || 0,
+              emoji:
+                row.emoji != null && String(row.emoji).trim() !== ''
+                  ? String(row.emoji).slice(0, 4)
+                  : em,
+            }
           : x
       ),
-    })),
-  eliminarSabor: (id) => set((s) => ({ sabores: s.sabores.filter((x) => x.id !== id) })),
+      inventarioPorSabor: {
+        ...s.inventarioPorSabor,
+        [row.sabor]: Number(row.stock) || 0,
+      },
+    }))
+    await get().calcularMeta()
+    return { ok: true }
+  },
+
+  async updateSabor(id, field, rawVal) {
+    if (field !== 'sabor' && field !== 'emoji' && field !== 'stock') return
+    const prev = get().sabores.find((x) => String(x.id) === String(id))
+    if (!prev) return
+
+    const prevSabor = String(prev.sabor ?? prev.nombre ?? '').trim()
+    const nextSabor =
+      field === 'sabor'
+        ? String(rawVal ?? '').trim() || prevSabor
+        : prevSabor
+    const nextEmoji =
+      field === 'emoji' ? String(rawVal ?? '').slice(0, 4) : prev.emoji
+    const nextStock =
+      field === 'stock' ? Number(rawVal) || 0 : Number(prev.stock) || 0
+
+    const key = `${id}:${field}`
+    set((s) => ({ saborFieldStatus: { ...s.saborFieldStatus, [key]: 'saving' } }))
+
+    set((s) => {
+      const sabores = s.sabores.map((x) =>
+        String(x.id) !== String(id)
+          ? x
+          : { ...x, sabor: nextSabor, emoji: nextEmoji, stock: nextStock }
+      )
+      const inventarioPorSabor = { ...s.inventarioPorSabor }
+      if (field === 'sabor' && prevSabor !== nextSabor) {
+        if (Object.prototype.hasOwnProperty.call(inventarioPorSabor, prevSabor)) {
+          inventarioPorSabor[nextSabor] = inventarioPorSabor[prevSabor]
+          delete inventarioPorSabor[prevSabor]
+        }
+        inventarioPorSabor[nextSabor] = nextStock
+      } else if (field === 'stock') {
+        inventarioPorSabor[nextSabor] = nextStock
+      }
+      const pausadoPorSabor = { ...s.pausadoPorSabor }
+      if (field === 'sabor' && prevSabor !== nextSabor && prevSabor in pausadoPorSabor) {
+        pausadoPorSabor[nextSabor] = pausadoPorSabor[prevSabor]
+        delete pausadoPorSabor[prevSabor]
+      }
+      return { sabores, inventarioPorSabor, pausadoPorSabor }
+    })
+
+    const clearOkLater = () => {
+      set((s) => ({ saborFieldStatus: { ...s.saborFieldStatus, [key]: 'ok' } }))
+      setTimeout(() => {
+        set((s) => {
+          const next = { ...s.saborFieldStatus }
+          delete next[key]
+          return { saborFieldStatus: next }
+        })
+      }, 1000)
+    }
+
+    if (!supabase) {
+      clearOkLater()
+      return
+    }
+
+    const patch = { updated_at: new Date().toISOString() }
+    if (field === 'stock') patch.stock = nextStock
+    if (field === 'emoji') patch.emoji = nextEmoji
+    if (field === 'sabor') patch.sabor = nextSabor
+
+    let targetId = prev.invId || (isInvUuid(prev.id) ? prev.id : null)
+    if (!targetId) {
+      const { data: found } = await supabase
+        .from('inventario_sabores')
+        .select('id')
+        .eq('sabor', prevSabor)
+        .maybeSingle()
+      targetId = found?.id || null
+    }
+
+    let error = null
+    if (targetId) {
+      const r = await supabase.from('inventario_sabores').update(patch).eq('id', targetId)
+      error = r.error
+      if (!error) {
+        set((s) => ({
+          sabores: s.sabores.map((x) =>
+            String(x.id) === String(id) ? { ...x, invId: targetId, id: targetId } : x
+          ),
+        }))
+      }
+    } else {
+      const ins = await supabase
+        .from('inventario_sabores')
+        .insert({
+          sabor: nextSabor,
+          stock: nextStock,
+          emoji: nextEmoji || '🥤',
+          pausado: false,
+        })
+        .select('id, sabor, stock, emoji')
+        .single()
+      error = ins.error
+      if (!error && ins.data) {
+        const dat = ins.data
+        set((s) => ({
+          sabores: s.sabores.map((x) =>
+            String(x.id) === String(id)
+              ? {
+                  ...x,
+                  id: dat.id,
+                  invId: dat.id,
+                  sabor: dat.sabor,
+                  stock: Number(dat.stock) || 0,
+                  emoji:
+                    dat.emoji != null && String(dat.emoji).trim() !== ''
+                      ? String(dat.emoji).slice(0, 4)
+                      : x.emoji,
+                }
+              : x
+          ),
+          inventarioPorSabor: {
+            ...s.inventarioPorSabor,
+            [dat.sabor]: Number(dat.stock) || 0,
+          },
+        }))
+      }
+    }
+
+    if (error) {
+      console.error('updateSabor', error)
+      set((s) => ({ saborFieldStatus: { ...s.saborFieldStatus, [key]: 'error' } }))
+      await get().cargarInventarioSabores()
+      return
+    }
+
+    clearOkLater()
+    await get().calcularMeta()
+  },
+
+  async eliminarSabor(id) {
+    const prev = get().sabores.find((x) => String(x.id) === String(id))
+    if (!prev) return
+    const saborKey = String(prev.sabor ?? prev.nombre ?? '').trim()
+    const targetId = prev.invId || (isInvUuid(prev.id) ? prev.id : null)
+
+    set((s) => {
+      const inventarioPorSabor = { ...s.inventarioPorSabor }
+      delete inventarioPorSabor[saborKey]
+      const pausadoPorSabor = { ...s.pausadoPorSabor }
+      delete pausadoPorSabor[saborKey]
+      return {
+        sabores: s.sabores.filter((x) => String(x.id) !== String(id)),
+        inventarioPorSabor,
+        pausadoPorSabor,
+      }
+    })
+
+    if (!supabase) return
+    if (targetId) {
+      const { error } = await supabase.from('inventario_sabores').delete().eq('id', targetId)
+      if (error) console.error('eliminarSabor', error)
+    } else if (!String(id).startsWith('j-')) {
+      const { error } = await supabase.from('inventario_sabores').delete().eq('sabor', saborKey)
+      if (error) console.error('eliminarSabor', error)
+    }
+    await get().calcularMeta()
+  },
 
   async cargarConfig() {
     if (!supabase) return
@@ -840,39 +1087,62 @@ export const useStore = create((set, get) => ({
   },
 
   /**
-   * Punto de equilibrio y ganancias estimadas (plan del día, compras, ventas de hoy).
-   * Gastos: suma de TODAS las compras en estado (misma fórmula que Compras.jsx), sin filtrar por fecha.
+   * Punto de equilibrio y ganancias estimadas (plan del día, compras de hoy, ventas de hoy).
+   * `totalGastos`: histórico (todas las compras). Meta y equilibrio usan solo compras con `fecha` = hoy.
+   * Si el plan de hoy tiene pg=pp=0, el precio promedio ponderado usa la semana o (PG+PP)/2.
    */
   calcularPuntoEquilibrio() {
     const { compras, plan, PG, PP, ventas, totalJugosHoy } = get()
     const lista = compras || []
+    const fechaHoy = formatDateLocal(new Date())
+    const monto = (c) => (Number(c.cantidad) || 0) * (Number(c.precio) || 0)
 
-    const totalGastos = lista.reduce(
-      (a, c) => a + (Number(c.cantidad) || 0) * (Number(c.precio) || 0),
-      0
-    )
-    const gastosHoy = totalGastos
+    const totalGastos = lista.reduce((a, c) => a + monto(c), 0)
+    const gastosHoyCalc = lista
+      .filter((c) => fechaCompraYmd(c) === fechaHoy)
+      .reduce((a, c) => a + monto(c), 0)
 
     const diaHoy = diaSemanaHoy()
-    const planHoy = (plan || []).find((r) => r.dia === diaHoy) || { pg: 40, pp: 25 }
-    const pg = Number(planHoy.pg) || 0
-    const pp = Number(planHoy.pp) || 0
-    const totalPlan = pg + pp
-    const precioPromedio =
-      totalPlan > 0 ? Math.round((pg * PG + pp * PP) / totalPlan) : Math.round(Number(PG) || DEFAULT_PG)
+    const planHoy = (plan || []).find((r) => r.dia === diaHoy)
+    const pg = Number(planHoy?.pg) || 0
+    const pp = Number(planHoy?.pp) || 0
+    const totalPlanHoy = pg + pp
+
+    const pgN = Number(PG) || DEFAULT_PG
+    const ppN = Number(PP) || DEFAULT_PP
+
+    let precioPromedio
+    if (totalPlanHoy > 0) {
+      precioPromedio = Math.round((pg * pgN + pp * ppN) / totalPlanHoy)
+    } else {
+      const planRows = plan || []
+      const totalSemana = planRows.reduce(
+        (a, r) => a + (Number(r.pg) || 0) + (Number(r.pp) || 0),
+        0
+      )
+      if (totalSemana > 0) {
+        const sumaPonderada = planRows.reduce(
+          (a, r) => a + (Number(r.pg) || 0) * pgN + (Number(r.pp) || 0) * ppN,
+          0
+        )
+        precioPromedio = Math.round(sumaPonderada / totalSemana)
+      } else {
+        precioPromedio = Math.round((pgN + ppN) / 2)
+      }
+    }
 
     const precioBase = Math.max(1, precioPromedio)
-    const equilibrio = totalGastos > 0 ? Math.ceil(totalGastos / precioBase) : 0
+    const equilibrio = gastosHoyCalc > 0 ? Math.ceil(gastosHoyCalc / precioBase) : 0
     const metaRecomendada = Math.ceil(equilibrio * 1.2)
 
     const vendidosHoy = Number(totalJugosHoy) || totalQtyVentas(ventas)
 
-    const gananciaActual = Math.round(vendidosHoy * precioPromedio - totalGastos)
-    const gananciaProyectada = Math.round(metaRecomendada * precioPromedio - totalGastos)
+    const gananciaActual = Math.round(vendidosHoy * precioPromedio - gastosHoyCalc)
+    const gananciaProyectada = Math.round(metaRecomendada * precioPromedio - gastosHoyCalc)
 
     set({
       totalGastos,
-      gastosHoy,
+      gastosHoy: gastosHoyCalc,
       precioPromedio,
       puntoEquilibrio: equilibrio,
       metaRecomendada,
@@ -983,9 +1253,52 @@ export const useStore = create((set, get) => ({
     return (data || []).map(normalizeVenta)
   },
 
+  /**
+   * Ventas en `[startIso, endIso)` sin mutar `ventas` (p. ej. Ganancias con semana elegida).
+   * @param {string} startIso
+   * @param {string} endIso
+   */
+  async fetchVentasRango(startIso, endIso) {
+    if (!startIso || !endIso) return []
+    const desde = new Date(startIso).getTime()
+    const hasta = new Date(endIso).getTime()
+    if (!Number.isFinite(desde) || !Number.isFinite(hasta) || hasta <= desde) return []
+
+    if (!supabase) {
+      const candidatas = [...(get().ventas || []), ...(get().ventasSemana || [])]
+      const out = []
+      const seen = new Set()
+      for (const v of candidatas) {
+        if (!v?.created_at) continue
+        const t = new Date(v.created_at).getTime()
+        if (!Number.isFinite(t) || t < desde || t >= hasta) continue
+        const key = v.id != null ? `id:${v.id}` : `${v.sabor}-${v.created_at}-${v.qty}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        out.push(normalizeVenta(v))
+      }
+      return out
+    }
+
+    const { data, error } = await supabase
+      .from('ventas')
+      .select('*')
+      .gte('created_at', startIso)
+      .lt('created_at', endIso)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('fetchVentasRango', error)
+      return []
+    }
+    return (data || []).map(normalizeVenta)
+  },
+
   async cargarInventarioSabores() {
     if (!supabase) return
-    const { data, error } = await supabase.from('inventario_sabores').select('sabor, stock, pausado')
+    const { data, error } = await supabase
+      .from('inventario_sabores')
+      .select('id, sabor, stock, pausado, emoji')
     if (error) {
       console.error('cargarInventarioSabores', error)
       return
@@ -998,7 +1311,44 @@ export const useStore = create((set, get) => ({
         pausadoMap[r.sabor] = Boolean(r.pausado)
       }
     }
-    set({ inventarioPorSabor: map, pausadoPorSabor: pausadoMap })
+    set((s) => {
+      const byKey = new Map(
+        (data || []).map((row) => [String(row.sabor).trim().toLowerCase(), row])
+      )
+      const seenDb = new Set()
+      const saboresNext = s.sabores.map((item) => {
+        const k = String(item.sabor ?? item.nombre).trim().toLowerCase()
+        const row = byKey.get(k)
+        if (!row) return item
+        seenDb.add(k)
+        return {
+          ...item,
+          id: row.id,
+          invId: row.id,
+          sabor: row.sabor,
+          stock: Number(row.stock) || 0,
+          emoji:
+            row.emoji != null && String(row.emoji).trim() !== ''
+              ? String(row.emoji).slice(0, 4)
+              : item.emoji,
+        }
+      })
+      for (const row of data || []) {
+        const k = String(row.sabor).trim().toLowerCase()
+        if (seenDb.has(k)) continue
+        saboresNext.push({
+          id: row.id,
+          invId: row.id,
+          sabor: row.sabor,
+          emoji:
+            row.emoji != null && String(row.emoji).trim() !== ''
+              ? String(row.emoji).slice(0, 4)
+              : '🥤',
+          stock: Number(row.stock) || 0,
+        })
+      }
+      return { inventarioPorSabor: map, pausadoPorSabor: pausadoMap, sabores: saboresNext }
+    })
     await get().calcularMeta()
   },
 
@@ -1035,12 +1385,14 @@ export const useStore = create((set, get) => ({
   async agregarSugerenciasACompras(items) {
     const list = (items || []).filter((i) => i && String(i.nombre || '').trim() !== '')
     if (!list.length) return
+    const fechaHoy = formatDateLocal(new Date())
     if (!supabase) {
       const temp = list.map((i, idx) => ({
         id: `tmp-sug-${Date.now()}-${idx}`,
         nombre: String(i.nombre).trim(),
         cantidad: Math.max(0, Number(i.cantidad) || 0),
         precio: Number(i.precio) || 0,
+        fecha: fechaHoy,
       }))
       set((s) => ({ compras: [...s.compras, ...temp] }))
       get().calcularPuntoEquilibrio()
@@ -1050,6 +1402,7 @@ export const useStore = create((set, get) => ({
       nombre: String(i.nombre).trim(),
       cantidad: Math.max(0, Number(i.cantidad) || 0),
       precio: Number(i.precio) || 0,
+      fecha: fechaHoy,
     }))
     const { data, error } = await supabase.from('compras').insert(rows).select()
     if (error) {
@@ -1144,7 +1497,9 @@ export const useStore = create((set, get) => ({
         ventas,
         totalJugosHoy: totalQtyVentas(ventas),
         sabores: s.sabores.map((x) =>
-          x.nombre === prev.sabor ? { ...x, stock: x.stock + prev.qty } : x
+          String(x.sabor ?? x.nombre) === String(prev.sabor)
+            ? { ...x, stock: x.stock + prev.qty }
+            : x
         ),
         plan: uiPlan ? ajustarPlanVenta(s.plan, prev, -1) : s.plan,
       }
@@ -1171,7 +1526,11 @@ export const useStore = create((set, get) => ({
       let sabores = s.sabores
       for (const v of prevVentas) {
         if (uiPlan) plan = ajustarPlanVenta(plan, v, -1)
-        sabores = sabores.map((x) => (x.nombre === v.sabor ? { ...x, stock: x.stock + v.qty } : x))
+        sabores = sabores.map((x) =>
+          String(x.sabor ?? x.nombre) === String(v.sabor)
+            ? { ...x, stock: x.stock + v.qty }
+            : x
+        )
       }
       return { ventas: [], totalJugosHoy: 0, plan, sabores }
     })
@@ -1458,6 +1817,7 @@ export const useStore = create((set, get) => ({
     await get().cargarPlan()
   },
 
+  /** Carga todas las filas de `compras`; el filtro por fecha/período es responsabilidad de la UI. */
   async cargarCompras() {
     if (!supabase) return
     const { data, error } = await supabase
@@ -1565,13 +1925,14 @@ export const useStore = create((set, get) => ({
 
   async agregarCompra() {
     const tempId = `tmp-${Date.now()}`
-    const empty = { id: tempId, nombre: '', cantidad: 0, precio: 0 }
+    const fechaHoy = formatDateLocal(new Date())
+    const empty = { id: tempId, nombre: '', cantidad: 0, precio: 0, fecha: fechaHoy }
     set((s) => ({ compras: [...s.compras, empty] }))
     get().calcularPuntoEquilibrio()
     if (!supabase) return
     const { data, error } = await supabase
       .from('compras')
-      .insert({ nombre: '', cantidad: 0, precio: 0 })
+      .insert({ nombre: '', cantidad: 0, precio: 0, fecha: fechaHoy })
       .select()
       .single()
     if (error) return console.error('agregarCompra', error)
